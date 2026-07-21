@@ -5,21 +5,230 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>jiunglee-dev</title>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            max-width: 600px;
-            margin: 80px auto;
-            padding: 0 20px;
-            color: #333;
-            line-height: 1.6;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        h1 { color: #0969da; }
-        a { color: #0969da; }
+
+        body {
+            min-height: 100vh;
+            background: #0a0a0a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
+        .container {
+            position: relative;
+            perspective: 1000px;
+        }
+
+        .card {
+            position: relative;
+            width: 368px;
+            height: 520px;
+            border-radius: 20px;
+            overflow: hidden;
+            transition: transform 0.1s ease-out, box-shadow 0.3s ease;
+            cursor: pointer;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .card:hover {
+            box-shadow: 0 40px 80px rgba(0, 0, 0, 0.8),
+                        0 0 60px rgba(100, 180, 255, 0.2);
+        }
+
+        .card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover img {
+            transform: scale(1.05);
+        }
+
+        /* 빛 반사 효과 */
+        .card .shine {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(
+                circle at var(--x, 50%) var(--y, 50%),
+                rgba(255, 255, 255, 0.15) 0%,
+                transparent 60%
+            );
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .card:hover .shine {
+            opacity: 1;
+        }
+
+        /* 배경 파티클 */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: rgba(100, 180, 255, 0.6);
+            border-radius: 50%;
+            animation: float linear infinite;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(100vh) rotate(0deg);
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-100px) rotate(720deg);
+                opacity: 0;
+            }
+        }
+
+        /* 글로우 링 */
+        .glow-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 500px;
+            height: 500px;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            border: 1px solid rgba(100, 180, 255, 0.1);
+            animation: pulse 3s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        .glow-ring:nth-child(2) {
+            width: 600px;
+            height: 600px;
+            animation-delay: 1s;
+        }
+
+        .glow-ring:nth-child(3) {
+            width: 700px;
+            height: 700px;
+            animation-delay: 2s;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 0.3;
+                transform: translate(-50%, -50%) scale(1);
+            }
+            50% {
+                opacity: 0.8;
+                transform: translate(-50%, -50%) scale(1.05);
+            }
+        }
+
+        /* 하단 텍스트 */
+        .credit {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 14px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
     </style>
 </head>
 <body>
-    <h1>안녕하세요! 👋</h1>
-    <p>jiunglee-dev의 페이지입니다.</p>
-    <p>이 사이트는 GitHub Pages로 호스팅됩니다.</p>
+    <div class="particles" id="particles"></div>
+
+    <div class="container">
+        <div class="glow-ring"></div>
+        <div class="glow-ring"></div>
+        <div class="glow-ring"></div>
+
+        <div class="card" id="card">
+            <img src="image.jpg" alt="artwork">
+            <div class="shine" id="shine"></div>
+        </div>
+    </div>
+
+    <div class="credit">jiunglee-dev</div>
+
+    <script>
+        // 3D 틸트 효과 — 마우스를 따라 카드가 기울어짐
+        const card = document.getElementById('card');
+        const shine = document.getElementById('shine');
+
+        card.addEventListener('mousemove', (e) => {
+            const rect = card.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+
+            const rotateX = (y - centerY) / 15;
+            const rotateY = (centerX - x) / 15;
+
+            card.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+
+            // 빛 반사 위치
+            const percentX = (x / rect.width) * 100;
+            const percentY = (y / rect.height) * 100;
+            shine.style.setProperty('--x', percentX + '%');
+            shine.style.setProperty('--y', percentY + '%');
+        });
+
+        card.addEventListener('mouseleave', () => {
+            card.style.transform = 'rotateX(0deg) rotateY(0deg)';
+        });
+
+        // 배경 파티클 생성
+        const particlesContainer = document.getElementById('particles');
+        for (let i = 0; i < 30; i++) {
+            const particle = document.createElement('div');
+            particle.classList.add('particle');
+            particle.style.left = Math.random() * 100 + '%';
+            particle.style.animationDuration = (Math.random() * 8 + 4) + 's';
+            particle.style.animationDelay = Math.random() * 5 + 's';
+            particle.style.width = (Math.random() * 3 + 2) + 'px';
+            particle.style.height = particle.style.width;
+            particlesContainer.appendChild(particle);
+        }
+
+        // 카드 클릭 시 펄스 효과
+        card.addEventListener('click', () => {
+            card.style.transition = 'transform 0.3s ease';
+            card.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                card.style.transform = 'scale(1)';
+                setTimeout(() => {
+                    card.style.transition = 'transform 0.1s ease-out';
+                }, 300);
+            }, 150);
+        });
+    </script>
 </body>
 </html>
