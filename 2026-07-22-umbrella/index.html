@@ -144,16 +144,20 @@
         meshes[1].visible = false;
         meshes[3].visible = false;
 
-        // 손잡이(meshes[0]) 길이 1.2배로 늘리기
-        meshes[0].scale.set(1, 1.2, 1);
+        // 손잡이(meshes[0]) 길이 늘리기 — 접힌 캐노피 밖으로 삐져나오게
+        // mesh 직접 스케일이 안 먹을 수 있으니 parent에 적용
+        if (meshes[0].parent) {
+            meshes[0].parent.scale.set(1, 1.5, 1);
+        } else {
+            meshes[0].scale.set(1, 1.5, 1);
+        }
 
         // meshes[2] = 펼친 캐노피 — 초기에 숨김
         meshes[2].visible = false;
         openParts.push(meshes[2]);
 
-        // 접힌 천: 위가 두껍고 아래가 가느다란 형태
-        // CylinderGeometry(상단반경, 하단반경, 높이)
-        const closedGeo = new THREE.CylinderGeometry(0.2, 0.03, 2.16, 12);
+        // 접힌 천: 위가 뾰족, 아래가 약간 두꺼운 형태 (접힌 장우산)
+        const closedGeo = new THREE.CylinderGeometry(0.03, 0.12, 2.16, 12);
         const closedMat = new THREE.MeshPhongMaterial({ color: 0xc0392b, roughness: 0.6 });
         const closedCone = new THREE.Mesh(closedGeo, closedMat);
         closedCone.position.set(0, 0.64, 0);
