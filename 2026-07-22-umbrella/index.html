@@ -456,11 +456,12 @@
         }
     }
 
-    // 마우스 움직이면 오디오 시작 (브라우저 정책: 유저 인터랙션 필요)
-    document.addEventListener('mousemove', () => {
-        initAudio();
-        document.querySelector('.hint').textContent = '우산을 클릭해보세요';
-    }, { once: true });
+    // 첫 인터랙션에 오디오 시작 (click/touchstart — 브라우저 필수)
+    ['click', 'touchstart'].forEach(evt => {
+        document.addEventListener(evt, () => {
+            initAudio();
+        }, { once: true });
+    });
 
     // === 애니메이션 ===
     function animate() {
