@@ -55,9 +55,10 @@
         }
         .trail-char {
             position: absolute;
-            font-size: 72px;
+            font-size: 200px;
             font-weight: bold;
             white-space: nowrap;
+            display: none;
         }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Jua&family=Do+Hyeon&family=Gothic+A1:wght@900&family=Nanum+Pen+Script&family=Gaegu:wght@700&family=Hi+Melody&family=Dokdo&family=Gugi&family=Gamja+Flower&family=Cute+Font&family=Sunflower:wght@700&family=Poor+Story&family=Nanum+Gothic:wght@800" display=swap rel="stylesheet">
@@ -65,7 +66,7 @@
 <body>
     <canvas id="main-canvas"></canvas>
     <div class="trail-text" id="trail-text"></div>
-    <img id="sun-gif" src="./39710a0936063393a976bb9091f5167e.gif" style="position:fixed; width:180px; height:180px; pointer-events:none; z-index:15; display:none; border-radius:50%;" />
+    <img id="sun-gif" src="./39710a0936063393a976bb9091f5167e.gif" style="position:fixed; width:540px; height:540px; pointer-events:none; z-index:15; display:none; border-radius:50%;" />
     <div class="hint">우산을 클릭해보세요</div>
     <div class="credit">Umbrella model by <a href="https://sketchfab.com/rbkavin" target="_blank">rbkavin</a> (CC-BY-4.0)</div>
 
@@ -372,16 +373,18 @@
 
         if (isOpen) {
             sunGif.style.display = 'block';
-            sunGif.style.left = (sx - 90) + 'px';
-            sunGif.style.top = (sy - 90) + 'px';
+            sunGif.style.left = (sx - 270) + 'px';
+            sunGif.style.top = (sy - 270) + 'px';
+            trailChars.forEach(ch => ch.style.display = 'block');
         } else {
             sunGif.style.display = 'none';
+            trailChars.forEach(ch => ch.style.display = 'none');
         }
 
         // 각 글자가 앞 글자를 쫓아감 — 뒤로 갈수록 극단적으로 느리게
         trailChars.forEach((ch, i) => {
             const leaderX = i === 0 ? sx : charPositions[i - 1].x;
-            const leaderY = i === 0 ? (sy + 80) : charPositions[i - 1].y;
+            const leaderY = i === 0 ? sy : charPositions[i - 1].y;
 
             // 속도: 첫 글자 0.15, 마지막 글자 0.003 수준
             const speed = 0.15 / (1 + i * 0.8);
