@@ -119,46 +119,35 @@
     loader.load('./low_poly_umbrella_open_and_closed.glb', (gltf) => {
         const model = gltf.scene;
 
-        // 모델 내부 구조 탐색
         model.traverse((child) => {
             if (child.isMesh) {
+                // 머테리얼 색상 설정
                 child.material = child.material.clone();
-                child.material.color.set(0xc0392b);
-                child.material.roughness = 0.6;
-                child.material.metalness = 0.0;
-
-                // 이름 기반으로 열림/닫힘 구분
-                // Object_2: 닫힌 손잡이, Object_3: 닫힌 손잡이
-                // Object_4: 열린 캐노피, Object_5: 열린 캐노피 부분
-                const name = child.name;
-                if (name === 'Object_2' || name === 'Object_3') {
-                    // 닫힌 우산 파트 (y좌표 기준으로 구분)
-                    // Object_2는 y가 0~1.7 범위 = 닫힌 우산
-                    closedParts.push(child);
-                } else if (name === 'Object_4' || name === 'Object_5') {
-                    // 열린 우산 파트
-                    openParts.push(child);
-                    child.visible = false;
+                if (child.material.name.includes('handel')) {
+                    child.material.color.set(0x3d2b1f);
+                    child.material.roughness = 0.4;
+                } else {
+                    child.material.color.set(0xc0392b);
+                    child.material.roughness = 0.7;
                 }
 
-                // 손잡이는 갈색으로
-                if (name === 'Object_2' || name === 'Object_3') {
-                    // 높이가 낮은 부분은 손잡이
+                const name = child.name;
+                // Object_2 = 닫힌 우산 (손잡이+접힌 형태, y 0~1.7)
+                // Object_3 = 열린 우산 손잡이 (y -2~-1.8)
+                // Object_4 = 열린 캐노피 (y 1.08~1.72)
+                // Object_5 = 열린 캐노피 파트 (디스크)
+                if (name === 'Object_2') {
+                    closedParts.push(child);
+                } else if (name === 'Object_3' || name === 'Object_4' || name === 'Object_5') {
+                    openParts.push(child);
+                    child.visible = false;
                 }
             }
         });
 
-        // 머테리얼 색상 보정
-        model.traverse((child) => {
-            if (child.isMesh) {
-                if (child.material.name.includes('handel')) {
-                    child.material.color.set(0x3d2b1f);
-                    child.material.roughness = 0.4;
-                } else if (child.material.name.includes('main')) {
-                    child.material.color.set(0xc0392b);
-                    child.material.roughness = 0.7;
-                }
-            }
+        // 열린 우산 파트를 위치 보정 (원본에서 아래에 배치되어 있으므로 위로 이동)
+        openParts.forEach(p => {
+            p.position.y += 2.0;
         });
 
         umbrellaGroup.add(model);
