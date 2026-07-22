@@ -136,14 +136,21 @@
             }
         });
 
-        // 세트 구분:
-        // 닫힌 우산 = meshes[0] (손잡이) + meshes[3] (접힌 천) → 원본 위치 그대로
-        // 열린 우산 = meshes[1] (손잡이) + meshes[2] (펼친 캐노피) → 원본 위치 그대로
-        closedParts.push(meshes[0], meshes[3]);
-        openParts.push(meshes[1], meshes[2]);
+        // 손잡이는 항상 보임 (meshes[0])
+        // 캐노피만 교체: meshes[3] = 접힌 천, meshes[2] = 펼친 캐노피
+        // meshes[1] = 열린 손잡이 → 안 씀
 
-        // 열린 우산 초기에 숨기기
-        openParts.forEach(p => p.visible = false);
+        // meshes[1] 숨기기
+        meshes[1].visible = false;
+
+        // 열린 캐노피 위치를 닫힌 우산 상단에 맞추기
+        // 닫힌 우산 y범위: 0~1.7, 열린 캐노피 원본 y: 1.08~1.72
+        // 캐노피가 손잡이 위에 붙도록 — 원본 위치가 이미 비슷한 높이이므로 그대로 시도
+        // 열린 캐노피는 초기에 숨김
+        meshes[2].visible = false;
+
+        closedParts.push(meshes[3]); // 접힌 천만
+        openParts.push(meshes[2]);   // 펼친 캐노피만
 
         umbrellaGroup.add(model);
         umbrellaGroup.scale.set(1.0, 1.0, 1.0);
