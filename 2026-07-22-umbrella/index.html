@@ -114,7 +114,7 @@
     </div>
     <div class="trail-text" id="trail-text"></div>
     <img id="sun-gif" src="./39710a0936063393a976bb9091f5167e.gif" style="position:fixed; width:540px; height:540px; pointer-events:none; z-index:15; display:none; border-radius:50%;" />
-    <div class="hint">우산을 클릭해보세요</div>
+    <div class="hint">화면을 클릭해서 시작하세요</div>
     <div class="credit">Umbrella model by <a href="https://sketchfab.com/rbkavin" target="_blank">rbkavin</a> (CC-BY-4.0)</div>
 
     <script type="importmap">
@@ -456,8 +456,11 @@
         }
     }
 
-    // 첫 클릭 시 오디오 초기화 (브라우저 정책)
-    canvas.addEventListener('click', () => { initAudio(); }, { once: true });
+    // 첫 클릭 시 오디오 초기화 + 비소리 바로 시작 (브라우저 정책)
+    document.addEventListener('click', () => {
+        initAudio();
+        document.querySelector('.hint').textContent = '우산을 클릭해보세요';
+    }, { once: true });
 
     // === 애니메이션 ===
     function animate() {
