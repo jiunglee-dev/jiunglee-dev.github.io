@@ -48,15 +48,17 @@
         /* 따라다니는 글자들 */
         .trail-text {
             position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
             pointer-events: none;
             z-index: 20;
-            display: flex;
-            gap: 2px;
         }
         .trail-char {
-            font-size: 28px;
+            position: absolute;
+            font-size: 48px;
             font-weight: bold;
             transition: color 0.5s;
+            white-space: nowrap;
         }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Jua&family=Do+Hyeon&family=Gothic+A1:wght@900&family=Nanum+Pen+Script&family=Gaegu:wght@700&family=Hi+Melody&family=Dokdo&family=Gugi&family=Gamja+Flower&family=Cute+Font&family=Sunflower:wght@700&family=Poor+Story&family=Nanum+Gothic:wght@800" display=swap rel="stylesheet">
@@ -320,7 +322,7 @@
         }
     });
 
-    // === 따라다니는 글자 세팅 ===
+    // === 따라다니는 글자 세팅 (병아리 트레일) ===
     const trailText = document.getElementById('trail-text');
     const text = '우산을가지고온날은왜비가안올까';
     const fonts = [
@@ -329,6 +331,8 @@
         'Cute Font', 'Sunflower', 'Poor Story', 'Nanum Gothic'
     ];
     const trailChars = [];
+    const trailPositions = []; // 각 글자의 목표 위치 히스토리
+
     text.split('').forEach((char, i) => {
         const span = document.createElement('span');
         span.classList.add('trail-char');
@@ -336,7 +340,12 @@
         span.style.fontFamily = `'${fonts[i % fonts.length]}', sans-serif`;
         trailText.appendChild(span);
         trailChars.push(span);
+        trailPositions.push({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
     });
+
+    // 태양 위치 히스토리 (프레임마다 기록)
+    const posHistory = [];
+    const historyGap = 6; // 몇 프레임 간격으로 각 글자가 따라오는지
 
     // === 애니메이션 ===
     function animate() {
@@ -358,15 +367,24 @@
         sunMesh.rotation.y += 0.006;
         sunMaterial.uniforms.time.value = time;
 
-        // 태양 화면 좌표 구하기 → 글자가 따라다니도록
+        // 태양 화면 좌표 구하기 → 글자가 줄줄이 따라다니도록
         const sunScreenPos = sunGroup.position.clone().project(camera);
         const sx = (sunScreenPos.x * 0.5 + 0.5) * window.innerWidth;
         const sy = (-sunScreenPos.y * 0.5 + 0.5) * window.innerHeight;
-        trailText.style.left = (sx - trailText.offsetWidth / 2) + 'px';
-        trailText.style.top = (sy + 80) + 'px';
 
-        // 글자 색상 시시각각 변화
+        // 히스토리에 현재 태양 위치 추가
+        posHistory.unshift({ x: sx, y: sy + 70 });
+        // 히스토리 길이 제한
+        const maxHistory = trailChars.length * historyGap + 10;
+        if (posHistory.length > maxHistory) posHistory.length = maxHistory;
+
+        // 각 글자가 히스토리에서 시차를 두고 위치를 가져옴 (병아리 효과)
         trailChars.forEach((ch, i) => {
+            const histIdx = (i + 1) * historyGap;
+            const pos = posHistory[Math.min(histIdx, posHistory.length - 1)] || { x: sx, y: sy + 70 };
+            ch.style.left = (pos.x - 24) + 'px';
+            ch.style.top = (pos.y + i * 4) + 'px';
+            // 색상 변화
             const hue = (time * 60 + i * 25) % 360;
             ch.style.color = `hsl(${hue}, 80%, 55%)`;
         });
