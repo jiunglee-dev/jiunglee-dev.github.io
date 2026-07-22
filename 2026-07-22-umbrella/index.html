@@ -125,14 +125,14 @@
         band.rotation.x = Math.PI / 2;
 
         // -- 펼친 캐노피 (Lathe로 부드러운 곡면) --
-        // 우산 단면 프로파일 — 부드러운 곡선
+        // 우산 단면 프로파일 — 위로 볼록, 가장자리에서 살짝 아래로 내려오는 형태
         const canopyProfile = [];
         const segments = 20;
         for (let i = 0; i <= segments; i++) {
             const t = i / segments;
-            // 우산 특유의 오목한 곡선
             const x = t * 1.6; // 반지름
-            const y = -Math.pow(t, 1.8) * 0.6 + 0.1 * Math.sin(t * Math.PI); // 높이 — 위로 볼록하다 가장자리에서 아래로
+            // 꼭대기(중심)가 높고, 바깥으로 갈수록 내려가는 곡선
+            const y = (1.0 - Math.pow(t, 1.2)) * 0.7;
             canopyProfile.push(new THREE.Vector2(x, y));
         }
 
@@ -144,19 +144,19 @@
             flatShading: false
         });
         const openCanopy = new THREE.Mesh(openCanopyGeo, openCanopyMat);
-        openCanopy.position.y = 1.0;
+        openCanopy.position.y = 0.8;
         openCanopy.visible = false;
 
-        // 펼친 캐노피 살 (리브) — 더 자연스럽게
+        // 펼친 캐노피 살 (리브) — 캐노피 곡면을 따라가도록
         const ribsGroup = new THREE.Group();
         const ribCount = 8;
         for (let i = 0; i < ribCount; i++) {
             const curve = new THREE.QuadraticBezierCurve3(
-                new THREE.Vector3(0, 1.1, 0),
-                new THREE.Vector3(0.8, 0.9, 0),
-                new THREE.Vector3(1.55, 0.45, 0)
+                new THREE.Vector3(0, 0.8 + 0.7, 0),       // 꼭대기 (중심 높이)
+                new THREE.Vector3(0.9, 0.8 + 0.35, 0),    // 중간
+                new THREE.Vector3(1.55, 0.8 + 0.0, 0)     // 가장자리
             );
-            const ribTubeGeo = new THREE.TubeGeometry(curve, 10, 0.015, 4, false);
+            const ribTubeGeo = new THREE.TubeGeometry(curve, 12, 0.015, 4, false);
             const ribMat = new THREE.MeshBasicMaterial({ color: 0x1a1a1a });
             const rib = new THREE.Mesh(ribTubeGeo, ribMat);
             rib.rotation.y = (Math.PI * 2 / ribCount) * i;
