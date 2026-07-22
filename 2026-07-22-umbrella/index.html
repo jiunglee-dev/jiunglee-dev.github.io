@@ -161,15 +161,10 @@
         // meshes[2] y: 1.08~1.72 → 손잡이 상단(1.7)과 거의 맞음!
         
         meshes[2].visible = false;
-        meshes[3].visible = false;  // 이것도 일단 숨기기
+        // meshes[3]은 접힌 천 — 기본 보임, 클릭하면 숨기고 meshes[2] 보이기
 
-        closedParts.length = 0;
-        openParts.length = 0;
-        
-        // 닫힌 상태: meshes[0] 전체 (이미 접힌 천+손잡이가 한 메시)
-        // 열린 상태: meshes[0](손잡이 그대로) + meshes[2](캐노피 추가)
-        // → 클릭 시 meshes[2]만 토글하면 됨!
         openParts.push(meshes[2]);
+        closedParts.push(meshes[3]);
 
         umbrellaGroup.add(model);
         umbrellaGroup.scale.set(1.0, 1.0, 1.0);
@@ -290,7 +285,7 @@
         if (hits.length > 0) {
             isOpen = !isOpen;
             if (isOpen) {
-                // 캐노피만 보이기
+                closedParts.forEach(p => p.visible = false);
                 openParts.forEach(p => p.visible = true);
                 targetSunY = 2.8;
                 rainOpacity = 0;
@@ -299,7 +294,7 @@
                 dirLight.intensity = 1.5;
                 ambientLight.intensity = 1.5;
             } else {
-                // 캐노피 숨기기
+                closedParts.forEach(p => p.visible = true);
                 openParts.forEach(p => p.visible = false);
                 targetSunY = 7;
                 rainOpacity = 0.6;
