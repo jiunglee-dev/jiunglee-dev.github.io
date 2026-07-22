@@ -143,14 +143,33 @@
         // meshes[1] 숨기기
         meshes[1].visible = false;
 
-        // 열린 캐노피 위치를 닫힌 우산 상단에 맞추기
-        // 닫힌 우산 y범위: 0~1.7, 열린 캐노피 원본 y: 1.08~1.72
-        // 캐노피가 손잡이 위에 붙도록 — 원본 위치가 이미 비슷한 높이이므로 그대로 시도
-        // 열린 캐노피는 초기에 숨김
+        // 열린 캐노피 위치를 닫힌 손잡이 상단에 맞추기
+        // 닫힌 손잡이 상단 y = 1.7 (accessor 0 max y: 0.324 → GLB는 z-up이므로 실제론 z축)
+        // 실제 Three.js에서는 y축으로 로드됨
+        // 닫힌 손잡이(meshes[0]) max y: 1.7, 접힌 천(meshes[3]) y: -2.2 ~ -1.8
+        // 열린 캐노피(meshes[2]) y: 1.08 ~ 1.72
+        // 
+        // 접힌 천이 y -2.0 근처에 있다 = 원래 열린 우산 옆에 배치된 것
+        // 접힌 천을 손잡이 위치로 옮겨야 함!
+        // 손잡이(meshes[0]) y: 0~1.7
+        // 접힌 천(meshes[3]) y: -2.2~-1.8 → +2.0 해서 -0.2~0.2 근처로? 아니 그것도 이상함
+        //
+        // 다시 생각: 제작자가 닫힌 우산 = meshes[0] alone (y 0~1.7에 손잡이+접힌 천 전부)
+        // meshes[3]은 열린 우산의 디스크 파트일 수 있음
+        //
+        // 접근 변경: meshes[0]만 닫힌 우산 전체, meshes[2]만 펼친 캐노피로 교체
+        // meshes[2] y: 1.08~1.72 → 손잡이 상단(1.7)과 거의 맞음!
+        
         meshes[2].visible = false;
+        meshes[3].visible = false;  // 이것도 일단 숨기기
 
-        closedParts.push(meshes[3]); // 접힌 천만
-        openParts.push(meshes[2]);   // 펼친 캐노피만
+        closedParts.length = 0;
+        openParts.length = 0;
+        
+        // 닫힌 상태: meshes[0] 전체 (이미 접힌 천+손잡이가 한 메시)
+        // 열린 상태: meshes[0](손잡이 그대로) + meshes[2](캐노피 추가)
+        // → 클릭 시 meshes[2]만 토글하면 됨!
+        openParts.push(meshes[2]);
 
         umbrellaGroup.add(model);
         umbrellaGroup.scale.set(1.0, 1.0, 1.0);
@@ -271,7 +290,7 @@
         if (hits.length > 0) {
             isOpen = !isOpen;
             if (isOpen) {
-                closedParts.forEach(p => p.visible = false);
+                // 캐노피만 보이기
                 openParts.forEach(p => p.visible = true);
                 targetSunY = 2.8;
                 rainOpacity = 0;
@@ -280,7 +299,7 @@
                 dirLight.intensity = 1.5;
                 ambientLight.intensity = 1.5;
             } else {
-                closedParts.forEach(p => p.visible = true);
+                // 캐노피 숨기기
                 openParts.forEach(p => p.visible = false);
                 targetSunY = 7;
                 rainOpacity = 0.6;
