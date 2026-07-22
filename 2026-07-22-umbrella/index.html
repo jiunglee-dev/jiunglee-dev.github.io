@@ -55,9 +55,8 @@
         }
         .trail-char {
             position: absolute;
-            font-size: 48px;
+            font-size: 72px;
             font-weight: bold;
-            transition: color 0.5s;
             white-space: nowrap;
         }
     </style>
@@ -331,7 +330,7 @@
         'Cute Font', 'Sunflower', 'Poor Story', 'Nanum Gothic'
     ];
     const trailChars = [];
-    const trailPositions = []; // 각 글자의 목표 위치 히스토리
+    const charPositions = []; // 각 글자의 현재 위치
 
     text.split('').forEach((char, i) => {
         const span = document.createElement('span');
@@ -340,12 +339,8 @@
         span.style.fontFamily = `'${fonts[i % fonts.length]}', sans-serif`;
         trailText.appendChild(span);
         trailChars.push(span);
-        trailPositions.push({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+        charPositions.push({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
     });
-
-    // 태양 위치 히스토리 (프레임마다 기록)
-    const posHistory = [];
-    const historyGap = 6; // 몇 프레임 간격으로 각 글자가 따라오는지
 
     // === 애니메이션 ===
     function animate() {
@@ -367,25 +362,29 @@
         sunMesh.rotation.y += 0.006;
         sunMaterial.uniforms.time.value = time;
 
-        // 태양 화면 좌표 구하기 → 글자가 줄줄이 따라다니도록
+        // 태양 화면 좌표 → 글자 트레일
         const sunScreenPos = sunGroup.position.clone().project(camera);
         const sx = (sunScreenPos.x * 0.5 + 0.5) * window.innerWidth;
         const sy = (-sunScreenPos.y * 0.5 + 0.5) * window.innerHeight;
 
-        // 히스토리에 현재 태양 위치 추가
-        posHistory.unshift({ x: sx, y: sy + 70 });
-        // 히스토리 길이 제한
-        const maxHistory = trailChars.length * historyGap + 10;
-        if (posHistory.length > maxHistory) posHistory.length = maxHistory;
-
-        // 각 글자가 히스토리에서 시차를 두고 위치를 가져옴 (병아리 효과)
+        // 각 글자가 앞 글자를 쫓아감 — 뒤로 갈수록 느리게 (감쇠)
         trailChars.forEach((ch, i) => {
-            const histIdx = (i + 1) * historyGap;
-            const pos = posHistory[Math.min(histIdx, posHistory.length - 1)] || { x: sx, y: sy + 70 };
-            ch.style.left = (pos.x - 24) + 'px';
-            ch.style.top = (pos.y + i * 4) + 'px';
+            // 리더 위치: 첫 글자는 태양, 나머지는 앞 글자
+            const leaderX = i === 0 ? sx : charPositions[i - 1].x;
+            const leaderY = i === 0 ? (sy + 80) : charPositions[i - 1].y;
+
+            // 속도: 앞 글자일수록 빠르게, 뒤로 갈수록 느리게
+            const speed = 0.12 - (i * 0.006);
+            const clampedSpeed = Math.max(speed, 0.02);
+
+            charPositions[i].x += (leaderX - charPositions[i].x) * clampedSpeed;
+            charPositions[i].y += (leaderY - charPositions[i].y) * clampedSpeed;
+
+            ch.style.left = (charPositions[i].x - 36) + 'px';
+            ch.style.top = charPositions[i].y + 'px';
+
             // 색상 변화
-            const hue = (time * 60 + i * 25) % 360;
+            const hue = (time * 50 + i * 25) % 360;
             ch.style.color = `hsl(${hue}, 80%, 55%)`;
         });
 
