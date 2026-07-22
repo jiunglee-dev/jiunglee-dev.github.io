@@ -433,8 +433,8 @@
             const leaderX = i === 0 ? sx : charPositions[i - 1].x;
             const leaderY = i === 0 ? sy : charPositions[i - 1].y;
 
-            // 속도: 첫 글자도 느리게, 뒤로 갈수록 거의 멈춤
-            const speed = 0.04 / (1 + i * 1.2);
+            // 속도: 앞 글자 느리게(0.06), 뒤로 갈수록 더 느리지만 읽히는 수준
+            const speed = 0.06 / (1 + i * 0.5);
 
             charPositions[i].x += (leaderX - charPositions[i].x) * speed;
             charPositions[i].y += (leaderY - charPositions[i].y) * speed;
