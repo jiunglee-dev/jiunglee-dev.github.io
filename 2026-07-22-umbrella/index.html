@@ -119,14 +119,11 @@
     loader.load('./low_poly_umbrella_open_and_closed.glb', (gltf) => {
         const model = gltf.scene;
 
-        // 열린 우산 파트를 담을 그룹
-        const openGroup = new THREE.Group();
-
+        // 메시 수집
+        const meshes = [];
         model.traverse((child) => {
             if (child.isMesh) {
                 child.material = child.material.clone();
-
-                // 머테리얼 이름으로 색상 구분
                 if (child.material.name.includes('handel')) {
                     child.material.color.set(0x3d2b1f);
                     child.material.roughness = 0.3;
@@ -134,38 +131,57 @@
                 } else {
                     child.material.color.set(0xc0392b);
                     child.material.roughness = 0.6;
-                    child.material.metalness = 0.0;
                 }
+                meshes.push(child);
             }
         });
 
-        // 노드 구조: 루트 > Sketchfab_model > children[1] 안에 메시들
-        // Object_2 = mesh index 0 (닫힌 손잡이, handelUmbrella)
-        // Object_3 = mesh index 1 (열린 손잡이, handelUmbrella.001)
-        // Object_4 = mesh index 2 (열린 캐노피, mainUmbrella)
-        // Object_5 = mesh index 3 (열린 캐노피 디스크, mainUmbrella.001)
-        const meshes = [];
-        model.traverse((child) => {
-            if (child.isMesh) meshes.push(child);
-        });
+        // GLB 구조:
+        // meshes[0] = handelUmbrella (닫힌 손잡이, y: 0~1.7)
+        // meshes[1] = handelUmbrella.001 (열린 손잡이, y: -2.0~-1.8)
+        // meshes[2] = mainUmbrella (열린 캐노피, y: 1.08~1.72)
+        // meshes[3] = mainUmbrella.001 (열린 디스크/닫힌 천, y: -2.2~-1.8)
+        
+        // y좌표 기준으로 확실히 분리:
+        // 닫힌 우산 = y가 양수 범위에 있는 손잡이(meshes[0])
+        // 열린 우산 = y가 음수 범위에 있는 파트들(meshes[1], meshes[3]) + 캐노피(meshes[2])
+        
+        // 실제로 확인: 처음 로드 시 전부 보이니까
+        // 닫힌 = meshes[0] (닫힌 손잡이+접힌 천이 한 덩어리)
+        // 열린 = meshes[1] + meshes[2] + meshes[3] (열린 손잡이 + 캐노피 + 디스크)
+        
+        // 아니다 — accessor 좌표를 보면:
+        // accessor 0 (mesh 0): y: 0~1.7 = 닫힌 우산 전체 (손잡이+접힌 천)
+        // accessor 4 (mesh 1): y: -2.0~-1.8 = 열린 손잡이
+        // accessor 8 (mesh 2): y: 1.08~1.72 = 열린 캐노피
+        // accessor 12 (mesh 3): y: -2.2~-1.8 (작은 원판, 열린 우산 아래쪽)
+        
+        // 결론:
+        // 닫힌 우산: meshes[0] only (y 0~1.7에 전부 다 있음)
+        // 열린 우산: meshes[1] + meshes[2] + meshes[3]
+        // 열린 우산 파트들이 y 음수에 있으니 위로 올려야 함
 
-        console.log('Meshes found:', meshes.map(m => m.name));
+        closedParts.push(meshes[0]);
 
-        // 닫힌 우산: 첫 번째 메시 (손잡이+접힌 형태)
-        if (meshes[0]) closedParts.push(meshes[0]);
+        // 열린 파트를 별도 그룹에 넣고 위치 맞추기
+        const openUmbrellaGroup = new THREE.Group();
+        openUmbrellaGroup.add(meshes[1].clone());
+        openUmbrellaGroup.add(meshes[2].clone());
+        openUmbrellaGroup.add(meshes[3].clone());
+        // 열린 파트 y를 위로 이동 (원래 -2 근처에 있으니 +2 해서 0 근처로)
+        openUmbrellaGroup.position.y = 2.0;
+        openUmbrellaGroup.visible = false;
+        openParts.push(openUmbrellaGroup);
 
-        // 열린 우산: 나머지 메시들
-        for (let i = 1; i < meshes.length; i++) {
-            openParts.push(meshes[i]);
-            meshes[i].visible = false;
-        }
+        // 원본 열린 파트 숨기기
+        meshes[1].visible = false;
+        meshes[2].visible = false;
+        meshes[3].visible = false;
 
         umbrellaGroup.add(model);
-
-        // 전체 모델이 원래 좌표계에서 열린/닫힌이 나란히 배치되어 있으므로
-        // 스케일과 위치 조정
-        umbrellaGroup.scale.set(2.5, 2.5, 2.5);
-        umbrellaGroup.position.set(0, -2.0, 0);
+        umbrellaGroup.add(openUmbrellaGroup);
+        umbrellaGroup.scale.set(2.0, 2.0, 2.0);
+        umbrellaGroup.position.set(0, -1.5, 0);
         scene.add(umbrellaGroup);
         modelLoaded = true;
     });
@@ -282,7 +298,6 @@
         if (hits.length > 0) {
             isOpen = !isOpen;
             if (isOpen) {
-                // 닫힌 우산 숨기고 열린 우산 보이기
                 closedParts.forEach(p => p.visible = false);
                 openParts.forEach(p => p.visible = true);
                 targetSunY = 2.8;
@@ -292,7 +307,6 @@
                 dirLight.intensity = 1.5;
                 ambientLight.intensity = 1.5;
             } else {
-                // 열린 우산 숨기고 닫힌 우산 보이기
                 closedParts.forEach(p => p.visible = true);
                 openParts.forEach(p => p.visible = false);
                 targetSunY = 7;
@@ -317,7 +331,7 @@
             const targetRotZ = -mouseX * tiltAmount;
             umbrellaGroup.rotation.x += (targetRotX - umbrellaGroup.rotation.x) * 0.04;
             umbrellaGroup.rotation.z += (targetRotZ - umbrellaGroup.rotation.z) * 0.04;
-            umbrellaGroup.position.y = -2.0 + Math.sin(time * 1.2) * 0.05;
+            umbrellaGroup.position.y = -1.5 + Math.sin(time * 1.2) * 0.05;
         }
 
         // 태양
