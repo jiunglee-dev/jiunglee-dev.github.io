@@ -136,50 +136,16 @@
             }
         });
 
-        // GLB 구조:
-        // meshes[0] = handelUmbrella (닫힌 손잡이, y: 0~1.7)
-        // meshes[1] = handelUmbrella.001 (열린 손잡이, y: -2.0~-1.8)
-        // meshes[2] = mainUmbrella (열린 캐노피, y: 1.08~1.72)
-        // meshes[3] = mainUmbrella.001 (열린 디스크/닫힌 천, y: -2.2~-1.8)
-        
-        // y좌표 기준으로 확실히 분리:
-        // 닫힌 우산 = y가 양수 범위에 있는 손잡이(meshes[0])
-        // 열린 우산 = y가 음수 범위에 있는 파트들(meshes[1], meshes[3]) + 캐노피(meshes[2])
-        
-        // 실제로 확인: 처음 로드 시 전부 보이니까
-        // 닫힌 = meshes[0] (닫힌 손잡이+접힌 천이 한 덩어리)
-        // 열린 = meshes[1] + meshes[2] + meshes[3] (열린 손잡이 + 캐노피 + 디스크)
-        
-        // 아니다 — accessor 좌표를 보면:
-        // accessor 0 (mesh 0): y: 0~1.7 = 닫힌 우산 전체 (손잡이+접힌 천)
-        // accessor 4 (mesh 1): y: -2.0~-1.8 = 열린 손잡이
-        // accessor 8 (mesh 2): y: 1.08~1.72 = 열린 캐노피
-        // accessor 12 (mesh 3): y: -2.2~-1.8 (작은 원판, 열린 우산 아래쪽)
-        
-        // 결론:
-        // 닫힌 우산: meshes[0] only (y 0~1.7에 전부 다 있음)
-        // 열린 우산: meshes[1] + meshes[2] + meshes[3]
-        // 열린 우산 파트들이 y 음수에 있으니 위로 올려야 함
+        // 세트 구분:
+        // 닫힌 우산 = meshes[0] (손잡이) + meshes[3] (접힌 천)
+        // 열린 우산 = meshes[1] (손잡이) + meshes[2] (펼친 캐노피)
+        closedParts.push(meshes[0], meshes[3]);
+        openParts.push(meshes[1], meshes[2]);
 
-        closedParts.push(meshes[0]);
-
-        // 열린 파트를 별도 그룹에 넣고 위치 맞추기
-        const openUmbrellaGroup = new THREE.Group();
-        openUmbrellaGroup.add(meshes[1].clone());
-        openUmbrellaGroup.add(meshes[2].clone());
-        openUmbrellaGroup.add(meshes[3].clone());
-        // 열린 파트 y를 위로 이동 (원래 -2 근처에 있으니 +2 해서 0 근처로)
-        openUmbrellaGroup.position.y = 2.0;
-        openUmbrellaGroup.visible = false;
-        openParts.push(openUmbrellaGroup);
-
-        // 원본 열린 파트 숨기기
-        meshes[1].visible = false;
-        meshes[2].visible = false;
-        meshes[3].visible = false;
+        // 열린 우산 초기에 숨기기
+        openParts.forEach(p => p.visible = false);
 
         umbrellaGroup.add(model);
-        umbrellaGroup.add(openUmbrellaGroup);
         umbrellaGroup.scale.set(2.0, 2.0, 2.0);
         umbrellaGroup.position.set(0, -1.5, 0);
         scene.add(umbrellaGroup);
