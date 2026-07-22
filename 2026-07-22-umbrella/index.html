@@ -49,7 +49,7 @@
 
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
-        camera.position.set(0, 0.5, 5);
+        camera.position.set(0, 0.5, 7);
 
         window.addEventListener('resize', () => {
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -200,8 +200,8 @@
 
         // 조립
         umbrellaGroup.add(shaft, handleCurve, handleEnd, topTip, closedCanopy, band, openCanopyGroup, rim, ribsGroup);
-        umbrellaGroup.position.set(0, -0.2, 0);
-        umbrellaGroup.scale.set(1.1, 1.1, 1.1);
+        umbrellaGroup.position.set(0, -0.5, 0);
+        umbrellaGroup.scale.set(1.8, 1.8, 1.8);
         scene.add(umbrellaGroup);
 
         // === 태양 (PS1 셰이더) ===
