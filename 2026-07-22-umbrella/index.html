@@ -42,15 +42,14 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
     (function() {
-        // === 씬 세팅 ===
         const canvas = document.getElementById('main-canvas');
-        const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true });
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
-        camera.position.set(0, 0, 6);
+        camera.position.set(0, 0.5, 5);
 
         window.addEventListener('resize', () => {
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -65,7 +64,7 @@
         dirLight.position.set(2, 4, 3);
         scene.add(dirLight);
 
-        // === 비 파티클 시스템 ===
+        // === 비 파티클 ===
         const rainCount = 3000;
         const rainGeo = new THREE.BufferGeometry();
         const rainPositions = new Float32Array(rainCount * 3);
@@ -80,184 +79,171 @@
         rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
 
         const rainMat = new THREE.PointsMaterial({
-            color: 0xaaccee,
-            size: 0.05,
-            transparent: true,
-            opacity: 0.6
+            color: 0xaaccee, size: 0.05, transparent: true, opacity: 0.6
         });
         const rain = new THREE.Points(rainGeo, rainMat);
         scene.add(rain);
 
-        // === 우산 3D 모델 (Three.js 코드로 모델링) ===
+        // === 우산 3D 모델 ===
         const umbrellaGroup = new THREE.Group();
 
-        // 캐노피 (반구) — 접힌 상태에서는 길쭉한 원뿔, 펴지면 반구
-        const canopyOpenGeo = new THREE.SphereGeometry(1.5, 16, 8, 0, Math.PI * 2, 0, Math.PI * 0.5);
-        const canopyMat = new THREE.MeshPhongMaterial({
-            color: 0xc0392b,
-            flatShading: true,
-            shininess: 30,
-            side: THREE.DoubleSide
-        });
-        const canopyOpen = new THREE.Mesh(canopyOpenGeo, canopyMat);
-        canopyOpen.rotation.x = Math.PI; // 뒤집어서 우산 형태
-        canopyOpen.position.y = 0.8;
-        canopyOpen.visible = false;
+        // -- 손잡이: J자형 지팡이 핸들 --
+        // 곧은 봉 부분
+        const shaftGeo = new THREE.CylinderGeometry(0.05, 0.05, 3.0, 12);
+        const shaftMat = new THREE.MeshPhongMaterial({ color: 0x3d2b1f, shininess: 80 });
+        const shaft = new THREE.Mesh(shaftGeo, shaftMat);
+        shaft.position.y = -0.5;
 
-        // 캐노피 살 (리브)
-        const ribGroup = new THREE.Group();
-        for (let i = 0; i < 8; i++) {
-            const ribGeo = new THREE.CylinderGeometry(0.01, 0.01, 1.5, 4);
-            const ribMat = new THREE.MeshBasicMaterial({ color: 0x222222 });
-            const rib = new THREE.Mesh(ribGeo, ribMat);
-            rib.position.y = 0.05;
-            rib.rotation.z = Math.PI * 0.35;
-            const ribPivot = new THREE.Group();
-            ribPivot.add(rib);
-            ribPivot.rotation.y = (Math.PI * 2 / 8) * i;
-            ribPivot.position.y = 0.8;
-            ribGroup.add(ribPivot);
+        // J자 커브 (TorusGeometry로 반원)
+        const handleCurveGeo = new THREE.TorusGeometry(0.22, 0.05, 8, 16, Math.PI);
+        const handleCurveMat = new THREE.MeshPhongMaterial({ color: 0x3d2b1f, shininess: 80 });
+        const handleCurve = new THREE.Mesh(handleCurveGeo, handleCurveMat);
+        handleCurve.position.y = -2.0;
+        handleCurve.position.x = 0.22;
+        handleCurve.rotation.z = Math.PI / 2;
+        handleCurve.rotation.x = Math.PI / 2;
+
+        // -- 꼭대기 팁 --
+        const topTipGeo = new THREE.SphereGeometry(0.07, 8, 8);
+        const topTipMat = new THREE.MeshPhongMaterial({ color: 0x1a1a1a });
+        const topTip = new THREE.Mesh(topTipGeo, topTipMat);
+        topTip.position.y = 1.0;
+
+        // -- 접힌 캐노피 (슬림한 원뿔) --
+        const closedCanopyGeo = new THREE.CylinderGeometry(0.03, 0.18, 2.0, 12);
+        const closedCanopyMat = new THREE.MeshPhongMaterial({
+            color: 0xc0392b, flatShading: false, shininess: 20
+        });
+        const closedCanopy = new THREE.Mesh(closedCanopyGeo, closedCanopyMat);
+        closedCanopy.position.y = 0.6;
+
+        // 접힌 상태 밴드 (중간에 묶인 느낌)
+        const bandGeo = new THREE.TorusGeometry(0.14, 0.02, 8, 16);
+        const bandMat = new THREE.MeshPhongMaterial({ color: 0x222222 });
+        const band = new THREE.Mesh(bandGeo, bandMat);
+        band.position.y = 0.3;
+        band.rotation.x = Math.PI / 2;
+
+        // -- 펼친 캐노피 (Lathe로 부드러운 곡면) --
+        // 우산 단면 프로파일 — 부드러운 곡선
+        const canopyProfile = [];
+        const segments = 20;
+        for (let i = 0; i <= segments; i++) {
+            const t = i / segments;
+            // 우산 특유의 오목한 곡선
+            const x = t * 1.6; // 반지름
+            const y = -Math.pow(t, 1.8) * 0.6 + 0.1 * Math.sin(t * Math.PI); // 높이 — 위로 볼록하다 가장자리에서 아래로
+            canopyProfile.push(new THREE.Vector2(x, y));
         }
-        ribGroup.visible = false;
 
-        // 접힌 캐노피 (원뿔)
-        const canopyClosedGeo = new THREE.ConeGeometry(0.15, 2.2, 8);
-        const canopyClosedMat = new THREE.MeshPhongMaterial({
+        const openCanopyGeo = new THREE.LatheGeometry(canopyProfile, 32);
+        const openCanopyMat = new THREE.MeshPhongMaterial({
             color: 0xc0392b,
-            flatShading: true
+            side: THREE.DoubleSide,
+            shininess: 30,
+            flatShading: false
         });
-        const canopyClosed = new THREE.Mesh(canopyClosedGeo, canopyClosedMat);
-        canopyClosed.position.y = 1.0;
+        const openCanopy = new THREE.Mesh(openCanopyGeo, openCanopyMat);
+        openCanopy.position.y = 1.0;
+        openCanopy.visible = false;
 
-        // 손잡이 (원통)
-        const stickGeo = new THREE.CylinderGeometry(0.04, 0.04, 2.8, 8);
-        const stickMat = new THREE.MeshPhongMaterial({ color: 0x2c2c2c, shininess: 60 });
-        const stick = new THREE.Mesh(stickGeo, stickMat);
-        stick.position.y = -0.6;
+        // 펼친 캐노피 살 (리브) — 더 자연스럽게
+        const ribsGroup = new THREE.Group();
+        const ribCount = 8;
+        for (let i = 0; i < ribCount; i++) {
+            const curve = new THREE.QuadraticBezierCurve3(
+                new THREE.Vector3(0, 1.1, 0),
+                new THREE.Vector3(0.8, 0.9, 0),
+                new THREE.Vector3(1.55, 0.45, 0)
+            );
+            const ribTubeGeo = new THREE.TubeGeometry(curve, 10, 0.015, 4, false);
+            const ribMat = new THREE.MeshBasicMaterial({ color: 0x1a1a1a });
+            const rib = new THREE.Mesh(ribTubeGeo, ribMat);
+            rib.rotation.y = (Math.PI * 2 / ribCount) * i;
+            ribsGroup.add(rib);
+        }
+        ribsGroup.visible = false;
 
-        // 갈고리 (Torus)
-        const hookGeo = new THREE.TorusGeometry(0.18, 0.04, 8, 12, Math.PI);
-        const hookMat = new THREE.MeshPhongMaterial({ color: 0x2c2c2c, shininess: 60 });
-        const hook = new THREE.Mesh(hookGeo, hookMat);
-        hook.position.y = -2.0;
-        hook.rotation.z = Math.PI;
-
-        // 꼭대기 장식
-        const tipGeo = new THREE.SphereGeometry(0.08, 8, 8);
-        const tipMat = new THREE.MeshPhongMaterial({ color: 0x2c2c2c });
-        const tip = new THREE.Mesh(tipGeo, tipMat);
-        tip.position.y = 2.1;
-
-        umbrellaGroup.add(canopyOpen, ribGroup, canopyClosed, stick, hook, tip);
-        umbrellaGroup.position.set(0, -0.5, 0);
-        umbrellaGroup.scale.set(1.2, 1.2, 1.2);
+        // 조립
+        umbrellaGroup.add(shaft, handleCurve, topTip, closedCanopy, band, openCanopy, ribsGroup);
+        umbrellaGroup.position.set(0, -0.3, 0);
+        umbrellaGroup.scale.set(1.0, 1.0, 1.0);
         scene.add(umbrellaGroup);
 
-        // === 태양 (PS1 스타일 — 셰이더) ===
+        // === 태양 (PS1 셰이더) ===
         const sunGroup = new THREE.Group();
-        sunGroup.position.set(3, 5, -2); // 시작: 화면 밖 위
+        sunGroup.position.set(2.5, 6, -2);
 
-        // 얼굴 텍스처 생성 (128x128 — 조금 더 디테일하게)
+        // 텍스처
         const faceCanvas = document.createElement('canvas');
         faceCanvas.width = 128;
         faceCanvas.height = 128;
         const fctx = faceCanvas.getContext('2d');
 
-        // 배경
         fctx.fillStyle = '#FFB800';
         fctx.fillRect(0, 0, 128, 128);
 
-        // 눈 — 크고 약간 불안한
+        // 눈
         fctx.fillStyle = '#000';
-        fctx.beginPath();
-        fctx.ellipse(42, 50, 10, 12, 0, 0, Math.PI * 2);
-        fctx.fill();
-        fctx.beginPath();
-        fctx.ellipse(86, 50, 10, 12, 0, 0, Math.PI * 2);
-        fctx.fill();
+        fctx.beginPath(); fctx.ellipse(42, 50, 10, 12, 0, 0, Math.PI * 2); fctx.fill();
+        fctx.beginPath(); fctx.ellipse(86, 50, 10, 12, 0, 0, Math.PI * 2); fctx.fill();
 
         // 눈 하이라이트
         fctx.fillStyle = '#fff';
-        fctx.beginPath();
-        fctx.arc(45, 46, 4, 0, Math.PI * 2);
-        fctx.fill();
-        fctx.beginPath();
-        fctx.arc(89, 46, 4, 0, Math.PI * 2);
-        fctx.fill();
+        fctx.beginPath(); fctx.arc(45, 46, 4, 0, Math.PI * 2); fctx.fill();
+        fctx.beginPath(); fctx.arc(89, 46, 4, 0, Math.PI * 2); fctx.fill();
 
         // 코
         fctx.fillStyle = '#E8960C';
-        fctx.beginPath();
-        fctx.arc(64, 68, 5, 0, Math.PI * 2);
-        fctx.fill();
+        fctx.beginPath(); fctx.arc(64, 68, 5, 0, Math.PI * 2); fctx.fill();
 
-        // 입 — 불편한 미소
-        fctx.strokeStyle = '#000';
-        fctx.lineWidth = 4;
-        fctx.beginPath();
-        fctx.arc(64, 78, 22, 0.1, Math.PI - 0.1);
-        fctx.stroke();
+        // 입
+        fctx.strokeStyle = '#000'; fctx.lineWidth = 4;
+        fctx.beginPath(); fctx.arc(64, 78, 22, 0.1, Math.PI - 0.1); fctx.stroke();
 
         // 이빨
         fctx.fillStyle = '#fff';
-        fctx.fillRect(50, 82, 7, 8);
-        fctx.fillRect(60, 82, 7, 8);
-        fctx.fillRect(70, 82, 7, 8);
-
-        // 이빨 윤곽
-        fctx.strokeStyle = '#000';
-        fctx.lineWidth = 1;
-        fctx.strokeRect(50, 82, 7, 8);
-        fctx.strokeRect(60, 82, 7, 8);
-        fctx.strokeRect(70, 82, 7, 8);
+        fctx.fillRect(50, 82, 7, 8); fctx.fillRect(60, 82, 7, 8); fctx.fillRect(70, 82, 7, 8);
+        fctx.strokeStyle = '#000'; fctx.lineWidth = 1;
+        fctx.strokeRect(50, 82, 7, 8); fctx.strokeRect(60, 82, 7, 8); fctx.strokeRect(70, 82, 7, 8);
 
         // 볼터치
         fctx.fillStyle = 'rgba(255, 80, 80, 0.4)';
-        fctx.beginPath();
-        fctx.ellipse(28, 70, 8, 5, 0, 0, Math.PI * 2);
-        fctx.fill();
-        fctx.beginPath();
-        fctx.ellipse(100, 70, 8, 5, 0, 0, Math.PI * 2);
-        fctx.fill();
+        fctx.beginPath(); fctx.ellipse(28, 70, 8, 5, 0, 0, Math.PI * 2); fctx.fill();
+        fctx.beginPath(); fctx.ellipse(100, 70, 8, 5, 0, 0, Math.PI * 2); fctx.fill();
 
         const sunTexture = new THREE.CanvasTexture(faceCanvas);
         sunTexture.magFilter = THREE.NearestFilter;
         sunTexture.minFilter = THREE.NearestFilter;
 
-        // PS1 버텍스 셰이더 — 지터 + 텍스처 워핑
+        // PS1 셰이더
         const sunVertShader = `
             uniform float time;
             varying vec2 vUv;
             void main() {
                 vUv = uv;
                 vec3 pos = position;
-                // PS1 버텍스 지터 — 스냅 to grid
                 float gridSize = 40.0;
                 vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
                 mvPos.xyz = floor(mvPos.xyz * gridSize) / gridSize;
                 gl_Position = projectionMatrix * mvPos;
             }
         `;
-
         const sunFragShader = `
             uniform sampler2D faceTexture;
             uniform float time;
             varying vec2 vUv;
             void main() {
-                // 텍스처 UV 워핑 — PS1 특유의 흔들림
                 vec2 uv = vUv;
-                uv.x += sin(uv.y * 10.0 + time * 2.0) * 0.02;
-                uv.y += cos(uv.x * 10.0 + time * 1.5) * 0.02;
+                uv.x += sin(uv.y * 10.0 + time * 2.0) * 0.015;
+                uv.y += cos(uv.x * 10.0 + time * 1.5) * 0.015;
                 vec4 texColor = texture2D(faceTexture, uv);
                 gl_FragColor = texColor;
             }
         `;
 
         const sunMaterial = new THREE.ShaderMaterial({
-            uniforms: {
-                faceTexture: { value: sunTexture },
-                time: { value: 0 }
-            },
+            uniforms: { faceTexture: { value: sunTexture }, time: { value: 0 } },
             vertexShader: sunVertShader,
             fragmentShader: sunFragShader
         });
@@ -266,7 +252,7 @@
         const sunMesh = new THREE.Mesh(sunGeo, sunMaterial);
         sunGroup.add(sunMesh);
 
-        // 광선 (삼각형 스파이크)
+        // 광선
         for (let i = 0; i < 12; i++) {
             const rayGeo = new THREE.ConeGeometry(0.15, 0.8, 4);
             const rayMat = new THREE.MeshBasicMaterial({ color: 0xFFB800 });
@@ -276,42 +262,37 @@
             ray.rotation.z = angle - Math.PI / 2;
             sunGroup.add(ray);
         }
-
         scene.add(sunGroup);
 
-        // === 상태 & 인터랙션 ===
+        // === 상태 ===
         let isOpen = false;
-        let targetUmbrellaRotX = 0;
-        let targetUmbrellaRotZ = 0;
-        let targetSunY = 5; // 화면 밖
+        let targetSunY = 6;
         let rainOpacity = 0.6;
         let time = 0;
-
-        // 마우스 추적 — 우산 각도 변경용
         let mouseX = 0, mouseY = 0;
+
         document.addEventListener('mousemove', (e) => {
             mouseX = (e.clientX / window.innerWidth) * 2 - 1;
             mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
         });
 
-        // 클릭 — raycaster로 우산 감지
+        // 클릭 감지
         const raycaster = new THREE.Raycaster();
-        const clickMouse = new THREE.Vector2();
+        const clickVec = new THREE.Vector2();
 
         canvas.addEventListener('click', (e) => {
-            clickMouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-            clickMouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-            raycaster.setFromCamera(clickMouse, camera);
+            clickVec.x = (e.clientX / window.innerWidth) * 2 - 1;
+            clickVec.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(clickVec, camera);
+            const hits = raycaster.intersectObjects(umbrellaGroup.children, true);
 
-            const intersects = raycaster.intersectObjects(umbrellaGroup.children, true);
-
-            if (intersects.length > 0) {
-                // 우산 클릭됨 — 토글
+            if (hits.length > 0) {
                 isOpen = !isOpen;
                 if (isOpen) {
-                    canopyClosed.visible = false;
-                    canopyOpen.visible = true;
-                    ribGroup.visible = true;
+                    closedCanopy.visible = false;
+                    band.visible = false;
+                    openCanopy.visible = true;
+                    ribsGroup.visible = true;
                     targetSunY = 2.5;
                     rainOpacity = 0;
                     document.body.classList.add('sunny');
@@ -319,10 +300,11 @@
                     dirLight.intensity = 1.2;
                     ambientLight.intensity = 1.2;
                 } else {
-                    canopyClosed.visible = true;
-                    canopyOpen.visible = false;
-                    ribGroup.visible = false;
-                    targetSunY = 5;
+                    closedCanopy.visible = true;
+                    band.visible = true;
+                    openCanopy.visible = false;
+                    ribsGroup.visible = false;
+                    targetSunY = 6;
                     rainOpacity = 0.6;
                     document.body.classList.remove('sunny');
                     dirLight.color.set(0xffffff);
@@ -332,40 +314,34 @@
             }
         });
 
-        // === 애니메이션 루프 ===
+        // === 애니메이션 ===
         function animate() {
             requestAnimationFrame(animate);
             time += 0.016;
 
-            // 우산 마우스 따라 기울기
-            if (!isOpen) {
-                targetUmbrellaRotX = mouseY * 0.15;
-                targetUmbrellaRotZ = -mouseX * 0.15;
-            } else {
-                // 펴진 상태 — 더 큰 기울기
-                targetUmbrellaRotX = mouseY * 0.25;
-                targetUmbrellaRotZ = -mouseX * 0.25;
-            }
+            // 우산 기울기 — 마우스 따라
+            const tiltAmount = isOpen ? 0.2 : 0.12;
+            const targetRotX = mouseY * tiltAmount;
+            const targetRotZ = -mouseX * tiltAmount;
+            umbrellaGroup.rotation.x += (targetRotX - umbrellaGroup.rotation.x) * 0.04;
+            umbrellaGroup.rotation.z += (targetRotZ - umbrellaGroup.rotation.z) * 0.04;
 
-            umbrellaGroup.rotation.x += (targetUmbrellaRotX - umbrellaGroup.rotation.x) * 0.05;
-            umbrellaGroup.rotation.z += (targetUmbrellaRotZ - umbrellaGroup.rotation.z) * 0.05;
+            // 부유감
+            umbrellaGroup.position.y = -0.3 + Math.sin(time * 1.2) * 0.06;
 
-            // 우산 살짝 흔들림
-            umbrellaGroup.position.y = -0.5 + Math.sin(time * 1.5) * 0.05;
-
-            // 태양 위치 보간
-            sunGroup.position.y += (targetSunY - sunGroup.position.y) * 0.03;
-            sunMesh.rotation.y += 0.005;
+            // 태양
+            sunGroup.position.y += (targetSunY - sunGroup.position.y) * 0.025;
+            sunMesh.rotation.y += 0.006;
             sunMaterial.uniforms.time.value = time;
 
-            // 비 업데이트
-            rainMat.opacity += (rainOpacity - rainMat.opacity) * 0.05;
-            const positions = rainGeo.attributes.position.array;
+            // 비
+            rainMat.opacity += (rainOpacity - rainMat.opacity) * 0.04;
+            const pos = rainGeo.attributes.position.array;
             for (let i = 0; i < rainCount; i++) {
-                positions[i * 3 + 1] -= rainVelocities[i];
-                if (positions[i * 3 + 1] < -5) {
-                    positions[i * 3 + 1] = 10;
-                    positions[i * 3] = (Math.random() - 0.5) * 20;
+                pos[i * 3 + 1] -= rainVelocities[i];
+                if (pos[i * 3 + 1] < -5) {
+                    pos[i * 3 + 1] = 10;
+                    pos[i * 3] = (Math.random() - 0.5) * 20;
                 }
             }
             rainGeo.attributes.position.needsUpdate = true;
