@@ -44,10 +44,26 @@
             z-index: 10;
         }
         .credit a { color: rgba(255,255,255,0.4); }
+
+        /* 따라다니는 글자들 */
+        .trail-text {
+            position: fixed;
+            pointer-events: none;
+            z-index: 20;
+            display: flex;
+            gap: 2px;
+        }
+        .trail-char {
+            font-size: 28px;
+            font-weight: bold;
+            transition: color 0.5s;
+        }
     </style>
+    <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Jua&family=Do+Hyeon&family=Gothic+A1:wght@900&family=Nanum+Pen+Script&family=Gaegu:wght@700&family=Hi+Melody&family=Dokdo&family=Gugi&family=Gamja+Flower&family=Cute+Font&family=Sunflower:wght@700&family=Poor+Story&family=Nanum+Gothic:wght@800" display=swap rel="stylesheet">
 </head>
 <body>
     <canvas id="main-canvas"></canvas>
+    <div class="trail-text" id="trail-text"></div>
     <div class="hint">우산을 클릭해보세요</div>
     <div class="credit">Umbrella model by <a href="https://sketchfab.com/rbkavin" target="_blank">rbkavin</a> (CC-BY-4.0)</div>
 
@@ -304,6 +320,24 @@
         }
     });
 
+    // === 따라다니는 글자 세팅 ===
+    const trailText = document.getElementById('trail-text');
+    const text = '우산을가지고온날은왜비가안올까';
+    const fonts = [
+        'Black Han Sans', 'Jua', 'Do Hyeon', 'Gothic A1', 'Nanum Pen Script',
+        'Gaegu', 'Hi Melody', 'Dokdo', 'Gugi', 'Gamja Flower',
+        'Cute Font', 'Sunflower', 'Poor Story', 'Nanum Gothic'
+    ];
+    const trailChars = [];
+    text.split('').forEach((char, i) => {
+        const span = document.createElement('span');
+        span.classList.add('trail-char');
+        span.textContent = char;
+        span.style.fontFamily = `'${fonts[i % fonts.length]}', sans-serif`;
+        trailText.appendChild(span);
+        trailChars.push(span);
+    });
+
     // === 애니메이션 ===
     function animate() {
         requestAnimationFrame(animate);
@@ -316,15 +350,26 @@
             umbrellaGroup.position.y = Math.sin(time * 1.2) * 0.05;
         }
 
-        // 태양 — 마우스를 부드럽게 따라다님
-        const targetSunX = mouseX * 2.5;
-        const targetSunZ = mouseY * 1.5;
-        const targetSunYMouse = targetSunY + mouseY * 1.0;
-        sunGroup.position.y += (targetSunYMouse - sunGroup.position.y) * 0.025;
-        sunGroup.position.x += (targetSunX - sunGroup.position.x) * 0.03;
-        sunGroup.position.z += (targetSunZ - sunGroup.position.z) * 0.03;
+        // 태양 — 마우스를 정확히 따라다님
+        const targetSunX = mouseX * 3.0;
+        const targetSunYMouse = targetSunY + mouseY * 2.0;
+        sunGroup.position.y += (targetSunYMouse - sunGroup.position.y) * 0.05;
+        sunGroup.position.x += (targetSunX - sunGroup.position.x) * 0.05;
         sunMesh.rotation.y += 0.006;
         sunMaterial.uniforms.time.value = time;
+
+        // 태양 화면 좌표 구하기 → 글자가 따라다니도록
+        const sunScreenPos = sunGroup.position.clone().project(camera);
+        const sx = (sunScreenPos.x * 0.5 + 0.5) * window.innerWidth;
+        const sy = (-sunScreenPos.y * 0.5 + 0.5) * window.innerHeight;
+        trailText.style.left = (sx - trailText.offsetWidth / 2) + 'px';
+        trailText.style.top = (sy + 80) + 'px';
+
+        // 글자 색상 시시각각 변화
+        trailChars.forEach((ch, i) => {
+            const hue = (time * 60 + i * 25) % 360;
+            ch.style.color = `hsl(${hue}, 80%, 55%)`;
+        });
 
         // 비
         rainMat.opacity += (rainOpacity - rainMat.opacity) * 0.04;
