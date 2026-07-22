@@ -309,18 +309,19 @@
         requestAnimationFrame(animate);
         time += 0.016;
 
-        // 우산 기울기
+        // 우산 — 제자리에서 둥실둥실
         if (modelLoaded) {
-            const tiltAmount = isOpen ? 0.15 : 0.1;
-            const targetRotX = mouseY * tiltAmount;
-            const targetRotZ = -mouseX * tiltAmount;
-            umbrellaGroup.rotation.x += (targetRotX - umbrellaGroup.rotation.x) * 0.04;
-            umbrellaGroup.rotation.z += (targetRotZ - umbrellaGroup.rotation.z) * 0.04;
-            umbrellaGroup.position.y = Math.sin(time * 1.2) * 0.03;
+            umbrellaGroup.rotation.x = Math.sin(time * 0.8) * 0.03;
+            umbrellaGroup.rotation.z = Math.cos(time * 0.6) * 0.03;
+            umbrellaGroup.position.y = Math.sin(time * 1.2) * 0.05;
         }
 
-        // 태양
+        // 태양 — 마우스를 부드럽게 따라다님
+        const targetSunX = mouseX * 2.5;
+        const targetSunZ = mouseY * 1.5;
         sunGroup.position.y += (targetSunY - sunGroup.position.y) * 0.025;
+        sunGroup.position.x += (targetSunX - sunGroup.position.x) * 0.03;
+        sunGroup.position.z += (targetSunZ - sunGroup.position.z) * 0.03;
         sunMesh.rotation.y += 0.006;
         sunMaterial.uniforms.time.value = time;
 
