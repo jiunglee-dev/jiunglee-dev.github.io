@@ -45,6 +45,45 @@
         }
         .credit a { color: rgba(255,255,255,0.4); }
 
+        /* 구름 */
+        .clouds {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 4;
+            opacity: 0;
+            transition: opacity 2s ease;
+        }
+        body.sunny .clouds { opacity: 1; }
+
+        .cloud {
+            position: absolute;
+            background: white;
+            border-radius: 50px;
+            opacity: 0.8;
+            animation: drift linear infinite;
+        }
+        .cloud::before, .cloud::after {
+            content: '';
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+        }
+        .cloud::before {
+            width: 60%; height: 120%;
+            top: -40%; left: 15%;
+        }
+        .cloud::after {
+            width: 50%; height: 100%;
+            top: -30%; right: 15%;
+        }
+
+        @keyframes drift {
+            0% { transform: translateX(-200px); }
+            100% { transform: translateX(calc(100vw + 200px)); }
+        }
+
         /* 따라다니는 글자들 */
         .trail-text {
             position: fixed;
@@ -65,6 +104,14 @@
 </head>
 <body>
     <canvas id="main-canvas"></canvas>
+    <div class="clouds">
+        <div class="cloud" style="width:120px;height:40px;top:8%;left:-200px;animation-duration:25s;animation-delay:0s;opacity:0.7;"></div>
+        <div class="cloud" style="width:180px;height:55px;top:15%;left:-200px;animation-duration:35s;animation-delay:3s;opacity:0.6;"></div>
+        <div class="cloud" style="width:100px;height:35px;top:25%;left:-200px;animation-duration:30s;animation-delay:8s;opacity:0.8;"></div>
+        <div class="cloud" style="width:150px;height:45px;top:35%;left:-200px;animation-duration:40s;animation-delay:12s;opacity:0.5;"></div>
+        <div class="cloud" style="width:90px;height:30px;top:50%;left:-200px;animation-duration:28s;animation-delay:5s;opacity:0.7;"></div>
+        <div class="cloud" style="width:200px;height:60px;top:60%;left:-200px;animation-duration:45s;animation-delay:15s;opacity:0.4;"></div>
+    </div>
     <div class="trail-text" id="trail-text"></div>
     <img id="sun-gif" src="./39710a0936063393a976bb9091f5167e.gif" style="position:fixed; width:540px; height:540px; pointer-events:none; z-index:15; display:none; border-radius:50%;" />
     <div class="hint">우산을 클릭해보세요</div>
@@ -386,8 +433,8 @@
             const leaderX = i === 0 ? sx : charPositions[i - 1].x;
             const leaderY = i === 0 ? sy : charPositions[i - 1].y;
 
-            // 속도: 첫 글자 0.15, 마지막 글자 0.003 수준
-            const speed = 0.15 / (1 + i * 0.8);
+            // 속도: 첫 글자도 느리게, 뒤로 갈수록 거의 멈춤
+            const speed = 0.04 / (1 + i * 1.2);
 
             charPositions[i].x += (leaderX - charPositions[i].x) * speed;
             charPositions[i].y += (leaderY - charPositions[i].y) * speed;
