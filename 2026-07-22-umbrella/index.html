@@ -65,6 +65,7 @@
 <body>
     <canvas id="main-canvas"></canvas>
     <div class="trail-text" id="trail-text"></div>
+    <img id="sun-gif" src="./39710a0936063393a976bb9091f5167e.gif" style="position:fixed; width:180px; height:180px; pointer-events:none; z-index:15; display:none; border-radius:50%;" />
     <div class="hint">우산을 클릭해보세요</div>
     <div class="credit">Umbrella model by <a href="https://sketchfab.com/rbkavin" target="_blank">rbkavin</a> (CC-BY-4.0)</div>
 
@@ -273,6 +274,9 @@
         sunGroup.add(ray);
     }
     scene.add(sunGroup);
+    sunGroup.visible = false; // 위치 계산용만, 렌더는 GIF로
+
+    const sunGif = document.getElementById('sun-gif');
 
     // === 상태 & 인터랙션 ===
     let isOpen = false;
@@ -359,26 +363,31 @@
         const targetSunYMouse = targetSunY + mouseY * 2.0;
         sunGroup.position.y += (targetSunYMouse - sunGroup.position.y) * 0.05;
         sunGroup.position.x += (targetSunX - sunGroup.position.x) * 0.05;
-        sunMesh.rotation.y += 0.006;
         sunMaterial.uniforms.time.value = time;
 
-        // 태양 화면 좌표 → 글자 트레일
+        // GIF를 태양 화면 좌표에 배치
         const sunScreenPos = sunGroup.position.clone().project(camera);
         const sx = (sunScreenPos.x * 0.5 + 0.5) * window.innerWidth;
         const sy = (-sunScreenPos.y * 0.5 + 0.5) * window.innerHeight;
 
-        // 각 글자가 앞 글자를 쫓아감 — 뒤로 갈수록 느리게 (감쇠)
+        if (isOpen) {
+            sunGif.style.display = 'block';
+            sunGif.style.left = (sx - 90) + 'px';
+            sunGif.style.top = (sy - 90) + 'px';
+        } else {
+            sunGif.style.display = 'none';
+        }
+
+        // 각 글자가 앞 글자를 쫓아감 — 뒤로 갈수록 극단적으로 느리게
         trailChars.forEach((ch, i) => {
-            // 리더 위치: 첫 글자는 태양, 나머지는 앞 글자
             const leaderX = i === 0 ? sx : charPositions[i - 1].x;
             const leaderY = i === 0 ? (sy + 80) : charPositions[i - 1].y;
 
-            // 속도: 앞 글자일수록 빠르게, 뒤로 갈수록 느리게
-            const speed = 0.12 - (i * 0.006);
-            const clampedSpeed = Math.max(speed, 0.02);
+            // 속도: 첫 글자 0.15, 마지막 글자 0.003 수준
+            const speed = 0.15 / (1 + i * 0.8);
 
-            charPositions[i].x += (leaderX - charPositions[i].x) * clampedSpeed;
-            charPositions[i].y += (leaderY - charPositions[i].y) * clampedSpeed;
+            charPositions[i].x += (leaderX - charPositions[i].x) * speed;
+            charPositions[i].y += (leaderY - charPositions[i].y) * speed;
 
             ch.style.left = (charPositions[i].x - 36) + 'px';
             ch.style.top = charPositions[i].y + 'px';
