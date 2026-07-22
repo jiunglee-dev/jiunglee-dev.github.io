@@ -149,11 +149,10 @@
         openParts.push(meshes[2]);
 
         // 접힌 상태: 코드로 만든 가느다란 원뿔을 손잡이 위에 배치
-        const closedGeo = new THREE.ConeGeometry(0.06, 0.6, 12);
+        const closedGeo = new THREE.ConeGeometry(0.12, 1.2, 12);
         const closedMat = new THREE.MeshPhongMaterial({ color: 0xc0392b, roughness: 0.6 });
         const closedCone = new THREE.Mesh(closedGeo, closedMat);
-        // 손잡이(meshes[0]) 상단 y ≈ 1.7, 원뿔 중심을 그 위에
-        closedCone.position.set(0, 1.4, 0);
+        closedCone.position.set(0, 1.2, 0);
         umbrellaGroup.add(closedCone);
         closedParts.push(closedCone);
 
