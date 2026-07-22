@@ -6,348 +6,374 @@
     <title>우산을 가지고 온 날은 왜 하필 비가 안올까?</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-
         body {
             min-height: 100vh;
             overflow: hidden;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            transition: background 1.5s ease;
             background: #1a1a2e;
             cursor: pointer;
+            transition: background 1.5s ease;
         }
+        body.sunny { background: #5bafeb; }
 
-        body.sunny {
-            background: #87CEEB;
-        }
-
-        #rain-canvas {
+        #main-canvas {
             position: fixed;
             top: 0; left: 0;
             width: 100%; height: 100%;
-            pointer-events: none;
-            z-index: 2;
-            transition: opacity 1s ease;
-        }
-
-        body.sunny #rain-canvas { opacity: 0; }
-
-        .dark-overlay {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.3);
-            z-index: 1;
-            transition: opacity 1.5s ease;
-        }
-
-        body.sunny .dark-overlay { opacity: 0; }
-
-        /* Three.js 태양 컨테이너 */
-        #sun-container {
-            position: fixed;
-            top: -300px;
-            right: 5%;
-            width: 250px;
-            height: 250px;
-            z-index: 3;
-            transition: top 1.8s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-
-        body.sunny #sun-container {
-            top: 20px;
-        }
-
-        #sun-container canvas {
-            width: 100% !important;
-            height: 100% !important;
-        }
-
-        /* 우산 */
-        .umbrella-wrapper {
-            position: fixed;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 5;
-            cursor: pointer;
-        }
-
-        .umbrella-closed {
-            width: 8px;
-            height: 200px;
-            background: #333;
-            border-radius: 4px;
-            position: relative;
-            margin: 0 auto;
-        }
-
-        .umbrella-closed .tip {
-            position: absolute;
-            bottom: -20px; left: 50%;
-            transform: translateX(-50%);
-            width: 20px; height: 20px;
-            border: 4px solid #333;
-            border-radius: 50%;
-            border-top: none;
-        }
-
-        .umbrella-closed .top-ball {
-            position: absolute;
-            top: -10px; left: 50%;
-            transform: translateX(-50%);
-            width: 16px; height: 16px;
-            background: #c0392b;
-            border-radius: 50%;
-        }
-
-        .umbrella-open {
-            display: none;
-            text-align: center;
-        }
-
-        .umbrella-open .canopy {
-            width: 200px; height: 100px;
-            background: #c0392b;
-            border-radius: 200px 200px 0 0;
-            position: relative;
-            margin: 0 auto;
-            overflow: hidden;
-        }
-
-        .umbrella-open .canopy::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: repeating-conic-gradient(
-                #c0392b 0deg 45deg, #a93226 45deg 90deg
-            );
-            border-radius: 200px 200px 0 0;
-            opacity: 0.4;
-        }
-
-        .umbrella-open .stick {
-            width: 6px; height: 140px;
-            background: #333;
-            margin: 0 auto;
-            border-radius: 3px;
-        }
-
-        .umbrella-open .hook {
-            width: 24px; height: 24px;
-            border: 5px solid #333;
-            border-radius: 50%;
-            border-top: none; border-left: none;
-            margin: -5px auto 0;
-            transform: rotate(45deg);
-        }
-
-        body.sunny .umbrella-open {
-            display: block;
-            animation: pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-
-        body.sunny .umbrella-closed { display: none; }
-
-        @keyframes pop {
-            0% { transform: scale(0.3) rotate(-10deg); opacity: 0; }
-            100% { transform: scale(1) rotate(0deg); opacity: 1; }
         }
 
         .hint {
             position: fixed;
             bottom: 40px; left: 50%;
             transform: translateX(-50%);
-            color: rgba(255, 255, 255, 0.5);
+            color: rgba(255,255,255,0.5);
             font-size: 14px;
+            font-family: -apple-system, sans-serif;
             z-index: 10;
             transition: opacity 1s ease;
             letter-spacing: 1px;
         }
-
         body.sunny .hint { opacity: 0; }
     </style>
 </head>
 <body>
-    <canvas id="rain-canvas"></canvas>
-    <div class="dark-overlay"></div>
-
-    <!-- Three.js 태양 -->
-    <div id="sun-container"></div>
-
-    <!-- 우산 -->
-    <div class="umbrella-wrapper" id="umbrella-trigger">
-        <div class="umbrella">
-            <div class="umbrella-closed">
-                <div class="top-ball"></div>
-                <div class="tip"></div>
-            </div>
-            <div class="umbrella-open">
-                <div class="canopy"></div>
-                <div class="stick"></div>
-                <div class="hook"></div>
-            </div>
-        </div>
-    </div>
-
+    <canvas id="main-canvas"></canvas>
     <div class="hint">우산을 클릭해보세요</div>
 
-    <!-- Three.js CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
     <script>
-        // === PS1 스타일 태양 (Three.js) ===
-        const container = document.getElementById('sun-container');
+    (function() {
+        // === 씬 세팅 ===
+        const canvas = document.getElementById('main-canvas');
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
-        camera.position.z = 3;
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 0, 6);
 
-        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false });
-        renderer.setSize(250, 250);
-        renderer.setPixelRatio(1); // 일부러 낮은 해상도
-        container.appendChild(renderer.domElement);
+        window.addEventListener('resize', () => {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+        });
 
-        // 얼굴 텍스처 — canvas로 직접 그리기 (픽셀 깨지는 느낌)
+        // === 조명 ===
+        const ambientLight = new THREE.AmbientLight(0x404060, 0.8);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+        dirLight.position.set(2, 4, 3);
+        scene.add(dirLight);
+
+        // === 비 파티클 시스템 ===
+        const rainCount = 3000;
+        const rainGeo = new THREE.BufferGeometry();
+        const rainPositions = new Float32Array(rainCount * 3);
+        const rainVelocities = new Float32Array(rainCount);
+
+        for (let i = 0; i < rainCount; i++) {
+            rainPositions[i * 3] = (Math.random() - 0.5) * 20;
+            rainPositions[i * 3 + 1] = Math.random() * 15 - 5;
+            rainPositions[i * 3 + 2] = (Math.random() - 0.5) * 10;
+            rainVelocities[i] = Math.random() * 0.2 + 0.15;
+        }
+        rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
+
+        const rainMat = new THREE.PointsMaterial({
+            color: 0xaaccee,
+            size: 0.05,
+            transparent: true,
+            opacity: 0.6
+        });
+        const rain = new THREE.Points(rainGeo, rainMat);
+        scene.add(rain);
+
+        // === 우산 3D 모델 (Three.js 코드로 모델링) ===
+        const umbrellaGroup = new THREE.Group();
+
+        // 캐노피 (반구) — 접힌 상태에서는 길쭉한 원뿔, 펴지면 반구
+        const canopyOpenGeo = new THREE.SphereGeometry(1.5, 16, 8, 0, Math.PI * 2, 0, Math.PI * 0.5);
+        const canopyMat = new THREE.MeshPhongMaterial({
+            color: 0xc0392b,
+            flatShading: true,
+            shininess: 30,
+            side: THREE.DoubleSide
+        });
+        const canopyOpen = new THREE.Mesh(canopyOpenGeo, canopyMat);
+        canopyOpen.rotation.x = Math.PI; // 뒤집어서 우산 형태
+        canopyOpen.position.y = 0.8;
+        canopyOpen.visible = false;
+
+        // 캐노피 살 (리브)
+        const ribGroup = new THREE.Group();
+        for (let i = 0; i < 8; i++) {
+            const ribGeo = new THREE.CylinderGeometry(0.01, 0.01, 1.5, 4);
+            const ribMat = new THREE.MeshBasicMaterial({ color: 0x222222 });
+            const rib = new THREE.Mesh(ribGeo, ribMat);
+            rib.position.y = 0.05;
+            rib.rotation.z = Math.PI * 0.35;
+            const ribPivot = new THREE.Group();
+            ribPivot.add(rib);
+            ribPivot.rotation.y = (Math.PI * 2 / 8) * i;
+            ribPivot.position.y = 0.8;
+            ribGroup.add(ribPivot);
+        }
+        ribGroup.visible = false;
+
+        // 접힌 캐노피 (원뿔)
+        const canopyClosedGeo = new THREE.ConeGeometry(0.15, 2.2, 8);
+        const canopyClosedMat = new THREE.MeshPhongMaterial({
+            color: 0xc0392b,
+            flatShading: true
+        });
+        const canopyClosed = new THREE.Mesh(canopyClosedGeo, canopyClosedMat);
+        canopyClosed.position.y = 1.0;
+
+        // 손잡이 (원통)
+        const stickGeo = new THREE.CylinderGeometry(0.04, 0.04, 2.8, 8);
+        const stickMat = new THREE.MeshPhongMaterial({ color: 0x2c2c2c, shininess: 60 });
+        const stick = new THREE.Mesh(stickGeo, stickMat);
+        stick.position.y = -0.6;
+
+        // 갈고리 (Torus)
+        const hookGeo = new THREE.TorusGeometry(0.18, 0.04, 8, 12, Math.PI);
+        const hookMat = new THREE.MeshPhongMaterial({ color: 0x2c2c2c, shininess: 60 });
+        const hook = new THREE.Mesh(hookGeo, hookMat);
+        hook.position.y = -2.0;
+        hook.rotation.z = Math.PI;
+
+        // 꼭대기 장식
+        const tipGeo = new THREE.SphereGeometry(0.08, 8, 8);
+        const tipMat = new THREE.MeshPhongMaterial({ color: 0x2c2c2c });
+        const tip = new THREE.Mesh(tipGeo, tipMat);
+        tip.position.y = 2.1;
+
+        umbrellaGroup.add(canopyOpen, ribGroup, canopyClosed, stick, hook, tip);
+        umbrellaGroup.position.set(0, -0.5, 0);
+        umbrellaGroup.scale.set(1.2, 1.2, 1.2);
+        scene.add(umbrellaGroup);
+
+        // === 태양 (PS1 스타일 — 셰이더) ===
+        const sunGroup = new THREE.Group();
+        sunGroup.position.set(3, 5, -2); // 시작: 화면 밖 위
+
+        // 얼굴 텍스처 생성 (128x128 — 조금 더 디테일하게)
         const faceCanvas = document.createElement('canvas');
-        faceCanvas.width = 64;  // 의도적으로 낮은 해상도
-        faceCanvas.height = 64;
+        faceCanvas.width = 128;
+        faceCanvas.height = 128;
         const fctx = faceCanvas.getContext('2d');
 
-        // 배경 — 노란색
+        // 배경
         fctx.fillStyle = '#FFB800';
-        fctx.fillRect(0, 0, 64, 64);
+        fctx.fillRect(0, 0, 128, 128);
 
-        // 눈 — 크고 불안한 눈
+        // 눈 — 크고 약간 불안한
         fctx.fillStyle = '#000';
-        fctx.fillRect(18, 20, 8, 10);
-        fctx.fillRect(38, 20, 8, 10);
+        fctx.beginPath();
+        fctx.ellipse(42, 50, 10, 12, 0, 0, Math.PI * 2);
+        fctx.fill();
+        fctx.beginPath();
+        fctx.ellipse(86, 50, 10, 12, 0, 0, Math.PI * 2);
+        fctx.fill();
 
         // 눈 하이라이트
         fctx.fillStyle = '#fff';
-        fctx.fillRect(20, 22, 4, 4);
-        fctx.fillRect(40, 22, 4, 4);
+        fctx.beginPath();
+        fctx.arc(45, 46, 4, 0, Math.PI * 2);
+        fctx.fill();
+        fctx.beginPath();
+        fctx.arc(89, 46, 4, 0, Math.PI * 2);
+        fctx.fill();
 
         // 코
         fctx.fillStyle = '#E8960C';
-        fctx.fillRect(30, 32, 5, 5);
+        fctx.beginPath();
+        fctx.arc(64, 68, 5, 0, Math.PI * 2);
+        fctx.fill();
 
         // 입 — 불편한 미소
-        fctx.fillStyle = '#000';
-        fctx.fillRect(20, 42, 24, 3);
-        fctx.fillRect(18, 40, 3, 3);
-        fctx.fillRect(43, 40, 3, 3);
+        fctx.strokeStyle = '#000';
+        fctx.lineWidth = 4;
+        fctx.beginPath();
+        fctx.arc(64, 78, 22, 0.1, Math.PI - 0.1);
+        fctx.stroke();
+
         // 이빨
         fctx.fillStyle = '#fff';
-        fctx.fillRect(24, 42, 4, 3);
-        fctx.fillRect(30, 42, 4, 3);
-        fctx.fillRect(36, 42, 4, 3);
+        fctx.fillRect(50, 82, 7, 8);
+        fctx.fillRect(60, 82, 7, 8);
+        fctx.fillRect(70, 82, 7, 8);
+
+        // 이빨 윤곽
+        fctx.strokeStyle = '#000';
+        fctx.lineWidth = 1;
+        fctx.strokeRect(50, 82, 7, 8);
+        fctx.strokeRect(60, 82, 7, 8);
+        fctx.strokeRect(70, 82, 7, 8);
 
         // 볼터치
-        fctx.fillStyle = 'rgba(255, 100, 100, 0.5)';
-        fctx.fillRect(12, 34, 6, 4);
-        fctx.fillRect(46, 34, 6, 4);
+        fctx.fillStyle = 'rgba(255, 80, 80, 0.4)';
+        fctx.beginPath();
+        fctx.ellipse(28, 70, 8, 5, 0, 0, Math.PI * 2);
+        fctx.fill();
+        fctx.beginPath();
+        fctx.ellipse(100, 70, 8, 5, 0, 0, Math.PI * 2);
+        fctx.fill();
 
-        const texture = new THREE.CanvasTexture(faceCanvas);
-        texture.magFilter = THREE.NearestFilter; // 픽셀 깨지게
-        texture.minFilter = THREE.NearestFilter;
+        const sunTexture = new THREE.CanvasTexture(faceCanvas);
+        sunTexture.magFilter = THREE.NearestFilter;
+        sunTexture.minFilter = THREE.NearestFilter;
 
-        // 로우폴리 구체
-        const geometry = new THREE.SphereGeometry(1, 8, 6); // 일부러 면 수 적게
-        const material = new THREE.MeshBasicMaterial({
-            map: texture,
-            flatShading: true
-        });
-        // flatShading은 MeshStandardMaterial에서만 동작하므로 별도 처리
-        const sunMesh = new THREE.Mesh(geometry, material);
-        scene.add(sunMesh);
-
-        // 버텍스 지터 (PS1 특유의 흔들림)
-        const originalPositions = geometry.attributes.position.array.slice();
-
-        let sunTime = 0;
-        function animateSun() {
-            requestAnimationFrame(animateSun);
-            sunTime += 0.02;
-
-            sunMesh.rotation.y += 0.008;
-
-            // PS1 버텍스 지터
-            const positions = geometry.attributes.position.array;
-            for (let i = 0; i < positions.length; i += 3) {
-                positions[i] = originalPositions[i] + (Math.random() - 0.5) * 0.02;
-                positions[i + 1] = originalPositions[i + 1] + (Math.random() - 0.5) * 0.02;
-                positions[i + 2] = originalPositions[i + 2] + (Math.random() - 0.5) * 0.02;
+        // PS1 버텍스 셰이더 — 지터 + 텍스처 워핑
+        const sunVertShader = `
+            uniform float time;
+            varying vec2 vUv;
+            void main() {
+                vUv = uv;
+                vec3 pos = position;
+                // PS1 버텍스 지터 — 스냅 to grid
+                float gridSize = 40.0;
+                vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
+                mvPos.xyz = floor(mvPos.xyz * gridSize) / gridSize;
+                gl_Position = projectionMatrix * mvPos;
             }
-            geometry.attributes.position.needsUpdate = true;
+        `;
+
+        const sunFragShader = `
+            uniform sampler2D faceTexture;
+            uniform float time;
+            varying vec2 vUv;
+            void main() {
+                // 텍스처 UV 워핑 — PS1 특유의 흔들림
+                vec2 uv = vUv;
+                uv.x += sin(uv.y * 10.0 + time * 2.0) * 0.02;
+                uv.y += cos(uv.x * 10.0 + time * 1.5) * 0.02;
+                vec4 texColor = texture2D(faceTexture, uv);
+                gl_FragColor = texColor;
+            }
+        `;
+
+        const sunMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                faceTexture: { value: sunTexture },
+                time: { value: 0 }
+            },
+            vertexShader: sunVertShader,
+            fragmentShader: sunFragShader
+        });
+
+        const sunGeo = new THREE.SphereGeometry(1.2, 10, 8);
+        const sunMesh = new THREE.Mesh(sunGeo, sunMaterial);
+        sunGroup.add(sunMesh);
+
+        // 광선 (삼각형 스파이크)
+        for (let i = 0; i < 12; i++) {
+            const rayGeo = new THREE.ConeGeometry(0.15, 0.8, 4);
+            const rayMat = new THREE.MeshBasicMaterial({ color: 0xFFB800 });
+            const ray = new THREE.Mesh(rayGeo, rayMat);
+            const angle = (Math.PI * 2 / 12) * i;
+            ray.position.set(Math.cos(angle) * 1.6, Math.sin(angle) * 1.6, 0);
+            ray.rotation.z = angle - Math.PI / 2;
+            sunGroup.add(ray);
+        }
+
+        scene.add(sunGroup);
+
+        // === 상태 & 인터랙션 ===
+        let isOpen = false;
+        let targetUmbrellaRotX = 0;
+        let targetUmbrellaRotZ = 0;
+        let targetSunY = 5; // 화면 밖
+        let rainOpacity = 0.6;
+        let time = 0;
+
+        // 마우스 추적 — 우산 각도 변경용
+        let mouseX = 0, mouseY = 0;
+        document.addEventListener('mousemove', (e) => {
+            mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+            mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        // 클릭 — raycaster로 우산 감지
+        const raycaster = new THREE.Raycaster();
+        const clickMouse = new THREE.Vector2();
+
+        canvas.addEventListener('click', (e) => {
+            clickMouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            clickMouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(clickMouse, camera);
+
+            const intersects = raycaster.intersectObjects(umbrellaGroup.children, true);
+
+            if (intersects.length > 0) {
+                // 우산 클릭됨 — 토글
+                isOpen = !isOpen;
+                if (isOpen) {
+                    canopyClosed.visible = false;
+                    canopyOpen.visible = true;
+                    ribGroup.visible = true;
+                    targetSunY = 2.5;
+                    rainOpacity = 0;
+                    document.body.classList.add('sunny');
+                    dirLight.color.set(0xfff4d6);
+                    dirLight.intensity = 1.2;
+                    ambientLight.intensity = 1.2;
+                } else {
+                    canopyClosed.visible = true;
+                    canopyOpen.visible = false;
+                    ribGroup.visible = false;
+                    targetSunY = 5;
+                    rainOpacity = 0.6;
+                    document.body.classList.remove('sunny');
+                    dirLight.color.set(0xffffff);
+                    dirLight.intensity = 0.6;
+                    ambientLight.intensity = 0.8;
+                }
+            }
+        });
+
+        // === 애니메이션 루프 ===
+        function animate() {
+            requestAnimationFrame(animate);
+            time += 0.016;
+
+            // 우산 마우스 따라 기울기
+            if (!isOpen) {
+                targetUmbrellaRotX = mouseY * 0.15;
+                targetUmbrellaRotZ = -mouseX * 0.15;
+            } else {
+                // 펴진 상태 — 더 큰 기울기
+                targetUmbrellaRotX = mouseY * 0.25;
+                targetUmbrellaRotZ = -mouseX * 0.25;
+            }
+
+            umbrellaGroup.rotation.x += (targetUmbrellaRotX - umbrellaGroup.rotation.x) * 0.05;
+            umbrellaGroup.rotation.z += (targetUmbrellaRotZ - umbrellaGroup.rotation.z) * 0.05;
+
+            // 우산 살짝 흔들림
+            umbrellaGroup.position.y = -0.5 + Math.sin(time * 1.5) * 0.05;
+
+            // 태양 위치 보간
+            sunGroup.position.y += (targetSunY - sunGroup.position.y) * 0.03;
+            sunMesh.rotation.y += 0.005;
+            sunMaterial.uniforms.time.value = time;
+
+            // 비 업데이트
+            rainMat.opacity += (rainOpacity - rainMat.opacity) * 0.05;
+            const positions = rainGeo.attributes.position.array;
+            for (let i = 0; i < rainCount; i++) {
+                positions[i * 3 + 1] -= rainVelocities[i];
+                if (positions[i * 3 + 1] < -5) {
+                    positions[i * 3 + 1] = 10;
+                    positions[i * 3] = (Math.random() - 0.5) * 20;
+                }
+            }
+            rainGeo.attributes.position.needsUpdate = true;
 
             renderer.render(scene, camera);
         }
-        animateSun();
-
-        // === 비 애니메이션 ===
-        const rainCanvas = document.getElementById('rain-canvas');
-        const ctx = rainCanvas.getContext('2d');
-        let w = rainCanvas.width = window.innerWidth;
-        let h = rainCanvas.height = window.innerHeight;
-        let isRaining = true;
-
-        window.addEventListener('resize', () => {
-            w = rainCanvas.width = window.innerWidth;
-            h = rainCanvas.height = window.innerHeight;
-        });
-
-        class Raindrop {
-            constructor() { this.reset(); }
-            reset() {
-                this.x = Math.random() * w;
-                this.y = Math.random() * -h;
-                this.speed = Math.random() * 15 + 10;
-                this.length = Math.random() * 25 + 15;
-                this.opacity = Math.random() * 0.4 + 0.2;
-            }
-            update() {
-                this.y += this.speed;
-                if (this.y > h) this.reset();
-            }
-            draw() {
-                ctx.beginPath();
-                ctx.moveTo(this.x, this.y);
-                ctx.lineTo(this.x + 1, this.y + this.length);
-                ctx.strokeStyle = `rgba(174, 194, 224, ${this.opacity})`;
-                ctx.lineWidth = 1.5;
-                ctx.stroke();
-            }
-        }
-
-        const drops = Array.from({ length: 200 }, () => new Raindrop());
-
-        function animateRain() {
-            if (!isRaining) { ctx.clearRect(0, 0, w, h); }
-            else {
-                ctx.clearRect(0, 0, w, h);
-                for (const drop of drops) { drop.update(); drop.draw(); }
-            }
-            requestAnimationFrame(animateRain);
-        }
-        animateRain();
-
-        // === 우산 클릭 ===
-        const trigger = document.getElementById('umbrella-trigger');
-        let opened = false;
-
-        trigger.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (opened) return;
-            opened = true;
-            isRaining = false;
-            document.body.classList.add('sunny');
-        });
-
-        document.body.addEventListener('click', () => {
-            if (!opened) return;
-            opened = false;
-            isRaining = true;
-            document.body.classList.remove('sunny');
-        });
+        animate();
+    })();
     </script>
 </body>
 </html>
