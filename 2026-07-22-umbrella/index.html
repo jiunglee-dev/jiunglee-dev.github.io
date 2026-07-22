@@ -119,40 +119,53 @@
     loader.load('./low_poly_umbrella_open_and_closed.glb', (gltf) => {
         const model = gltf.scene;
 
+        // 열린 우산 파트를 담을 그룹
+        const openGroup = new THREE.Group();
+
         model.traverse((child) => {
             if (child.isMesh) {
-                // 머테리얼 색상 설정
                 child.material = child.material.clone();
+
+                // 머테리얼 이름으로 색상 구분
                 if (child.material.name.includes('handel')) {
                     child.material.color.set(0x3d2b1f);
-                    child.material.roughness = 0.4;
+                    child.material.roughness = 0.3;
+                    child.material.metalness = 0.1;
                 } else {
                     child.material.color.set(0xc0392b);
-                    child.material.roughness = 0.7;
-                }
-
-                const name = child.name;
-                // Object_2 = 닫힌 우산 (손잡이+접힌 형태, y 0~1.7)
-                // Object_3 = 열린 우산 손잡이 (y -2~-1.8)
-                // Object_4 = 열린 캐노피 (y 1.08~1.72)
-                // Object_5 = 열린 캐노피 파트 (디스크)
-                if (name === 'Object_2') {
-                    closedParts.push(child);
-                } else if (name === 'Object_3' || name === 'Object_4' || name === 'Object_5') {
-                    openParts.push(child);
-                    child.visible = false;
+                    child.material.roughness = 0.6;
+                    child.material.metalness = 0.0;
                 }
             }
         });
 
-        // 열린 우산 파트를 위치 보정 (원본에서 아래에 배치되어 있으므로 위로 이동)
-        openParts.forEach(p => {
-            p.position.y += 2.0;
+        // 노드 구조: 루트 > Sketchfab_model > children[1] 안에 메시들
+        // Object_2 = mesh index 0 (닫힌 손잡이, handelUmbrella)
+        // Object_3 = mesh index 1 (열린 손잡이, handelUmbrella.001)
+        // Object_4 = mesh index 2 (열린 캐노피, mainUmbrella)
+        // Object_5 = mesh index 3 (열린 캐노피 디스크, mainUmbrella.001)
+        const meshes = [];
+        model.traverse((child) => {
+            if (child.isMesh) meshes.push(child);
         });
 
+        console.log('Meshes found:', meshes.map(m => m.name));
+
+        // 닫힌 우산: 첫 번째 메시 (손잡이+접힌 형태)
+        if (meshes[0]) closedParts.push(meshes[0]);
+
+        // 열린 우산: 나머지 메시들
+        for (let i = 1; i < meshes.length; i++) {
+            openParts.push(meshes[i]);
+            meshes[i].visible = false;
+        }
+
         umbrellaGroup.add(model);
-        umbrellaGroup.scale.set(2.0, 2.0, 2.0);
-        umbrellaGroup.position.set(0, -1.5, 0);
+
+        // 전체 모델이 원래 좌표계에서 열린/닫힌이 나란히 배치되어 있으므로
+        // 스케일과 위치 조정
+        umbrellaGroup.scale.set(2.5, 2.5, 2.5);
+        umbrellaGroup.position.set(0, -2.0, 0);
         scene.add(umbrellaGroup);
         modelLoaded = true;
     });
@@ -269,6 +282,7 @@
         if (hits.length > 0) {
             isOpen = !isOpen;
             if (isOpen) {
+                // 닫힌 우산 숨기고 열린 우산 보이기
                 closedParts.forEach(p => p.visible = false);
                 openParts.forEach(p => p.visible = true);
                 targetSunY = 2.8;
@@ -278,6 +292,7 @@
                 dirLight.intensity = 1.5;
                 ambientLight.intensity = 1.5;
             } else {
+                // 열린 우산 숨기고 닫힌 우산 보이기
                 closedParts.forEach(p => p.visible = true);
                 openParts.forEach(p => p.visible = false);
                 targetSunY = 7;
@@ -302,7 +317,7 @@
             const targetRotZ = -mouseX * tiltAmount;
             umbrellaGroup.rotation.x += (targetRotX - umbrellaGroup.rotation.x) * 0.04;
             umbrellaGroup.rotation.z += (targetRotZ - umbrellaGroup.rotation.z) * 0.04;
-            umbrellaGroup.position.y = -1.5 + Math.sin(time * 1.2) * 0.05;
+            umbrellaGroup.position.y = -2.0 + Math.sin(time * 1.2) * 0.05;
         }
 
         // 태양
