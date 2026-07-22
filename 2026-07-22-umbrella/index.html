@@ -360,6 +360,9 @@
                 dirLight.color.set(0xfff4d6);
                 dirLight.intensity = 1.5;
                 ambientLight.intensity = 1.5;
+                // 비 소리 페이드아웃, 참새 재생
+                if (rainGain) rainGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1);
+                playChirp();
             } else {
                 closedParts.forEach(p => p.visible = true);
                 openParts.forEach(p => p.visible = false);
@@ -369,6 +372,8 @@
                 dirLight.color.set(0xffffff);
                 dirLight.intensity = 0.8;
                 ambientLight.intensity = 1.0;
+                // 비 소리 페이드인
+                if (rainGain) rainGain.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 1);
             }
         }
     });
@@ -393,6 +398,66 @@
         trailChars.push(span);
         charPositions.push({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
     });
+
+    // === 사운드 (Web Audio API) ===
+    let audioCtx = null;
+    let rainNode = null;
+    let rainGain = null;
+
+    function initAudio() {
+        if (audioCtx) return;
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        // 비 소리: 화이트노이즈 + 밴드패스 필터
+        const bufferSize = audioCtx.sampleRate * 2;
+        const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            output[i] = Math.random() * 2 - 1;
+        }
+
+        rainNode = audioCtx.createBufferSource();
+        rainNode.buffer = noiseBuffer;
+        rainNode.loop = true;
+
+        const bandpass = audioCtx.createBiquadFilter();
+        bandpass.type = 'bandpass';
+        bandpass.frequency.value = 800;
+        bandpass.Q.value = 0.5;
+
+        const highpass = audioCtx.createBiquadFilter();
+        highpass.type = 'highpass';
+        highpass.frequency.value = 400;
+
+        rainGain = audioCtx.createGain();
+        rainGain.gain.value = 0.3;
+
+        rainNode.connect(bandpass);
+        bandpass.connect(highpass);
+        highpass.connect(rainGain);
+        rainGain.connect(audioCtx.destination);
+        rainNode.start();
+    }
+
+    function playChirp() {
+        if (!audioCtx) return;
+        // 참새 짹짹: 짧은 고음 오실레이터 2번
+        for (let i = 0; i < 3; i++) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = 2800 + Math.random() * 1200;
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime + i * 0.12);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + i * 0.12 + 0.08);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(audioCtx.currentTime + i * 0.12);
+            osc.stop(audioCtx.currentTime + i * 0.12 + 0.1);
+        }
+    }
+
+    // 첫 클릭 시 오디오 초기화 (브라우저 정책)
+    canvas.addEventListener('click', () => { initAudio(); }, { once: true });
 
     // === 애니메이션 ===
     function animate() {
