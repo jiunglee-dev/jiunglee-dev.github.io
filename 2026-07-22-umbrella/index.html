@@ -33,359 +33,309 @@
             letter-spacing: 1px;
         }
         body.sunny .hint { opacity: 0; }
+
+        /* 크레딧 — CC-BY-4.0 */
+        .credit {
+            position: fixed;
+            bottom: 10px; right: 10px;
+            color: rgba(255,255,255,0.3);
+            font-size: 10px;
+            font-family: sans-serif;
+            z-index: 10;
+        }
+        .credit a { color: rgba(255,255,255,0.4); }
     </style>
 </head>
 <body>
     <canvas id="main-canvas"></canvas>
     <div class="hint">우산을 클릭해보세요</div>
+    <div class="credit">Umbrella model by <a href="https://sketchfab.com/rbkavin" target="_blank">rbkavin</a> (CC-BY-4.0)</div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script>
-    (function() {
-        const canvas = document.getElementById('main-canvas');
-        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+    const canvas = document.getElementById('main-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.2;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 1, 6);
+    camera.lookAt(0, 0.5, 0);
+
+    window.addEventListener('resize', () => {
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+    });
 
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
-        camera.position.set(0, 0.5, 7);
+    // === 조명 ===
+    const ambientLight = new THREE.AmbientLight(0x404060, 1.0);
+    scene.add(ambientLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(3, 5, 4);
+    scene.add(dirLight);
+    const fillLight = new THREE.DirectionalLight(0x8888ff, 0.3);
+    fillLight.position.set(-2, 1, -1);
+    scene.add(fillLight);
 
-        window.addEventListener('resize', () => {
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-        });
+    // === 비 파티클 ===
+    const rainCount = 3000;
+    const rainGeo = new THREE.BufferGeometry();
+    const rainPositions = new Float32Array(rainCount * 3);
+    const rainVelocities = new Float32Array(rainCount);
 
-        // === 조명 ===
-        const ambientLight = new THREE.AmbientLight(0x404060, 0.8);
-        scene.add(ambientLight);
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
-        dirLight.position.set(2, 4, 3);
-        scene.add(dirLight);
+    for (let i = 0; i < rainCount; i++) {
+        rainPositions[i * 3] = (Math.random() - 0.5) * 20;
+        rainPositions[i * 3 + 1] = Math.random() * 15 - 5;
+        rainPositions[i * 3 + 2] = (Math.random() - 0.5) * 10;
+        rainVelocities[i] = Math.random() * 0.2 + 0.15;
+    }
+    rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
+    const rainMat = new THREE.PointsMaterial({ color: 0xaaccee, size: 0.05, transparent: true, opacity: 0.6 });
+    const rain = new THREE.Points(rainGeo, rainMat);
+    scene.add(rain);
 
-        // === 비 파티클 ===
-        const rainCount = 3000;
-        const rainGeo = new THREE.BufferGeometry();
-        const rainPositions = new Float32Array(rainCount * 3);
-        const rainVelocities = new Float32Array(rainCount);
+    // === 우산 모델 로드 ===
+    const loader = new GLTFLoader();
+    let umbrellaGroup = new THREE.Group();
+    let closedParts = [];
+    let openParts = [];
+    let modelLoaded = false;
 
-        for (let i = 0; i < rainCount; i++) {
-            rainPositions[i * 3] = (Math.random() - 0.5) * 20;
-            rainPositions[i * 3 + 1] = Math.random() * 15 - 5;
-            rainPositions[i * 3 + 2] = (Math.random() - 0.5) * 10;
-            rainVelocities[i] = Math.random() * 0.2 + 0.15;
-        }
-        rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
+    loader.load('./low_poly_umbrella_open_and_closed.glb', (gltf) => {
+        const model = gltf.scene;
 
-        const rainMat = new THREE.PointsMaterial({
-            color: 0xaaccee, size: 0.05, transparent: true, opacity: 0.6
-        });
-        const rain = new THREE.Points(rainGeo, rainMat);
-        scene.add(rain);
+        // 모델 내부 구조 탐색
+        model.traverse((child) => {
+            if (child.isMesh) {
+                child.material = child.material.clone();
+                child.material.color.set(0xc0392b);
+                child.material.roughness = 0.6;
+                child.material.metalness = 0.0;
 
-        // === 우산 3D 모델 (PS2 디테일) ===
-        const umbrellaGroup = new THREE.Group();
+                // 이름 기반으로 열림/닫힘 구분
+                // Object_2: 닫힌 손잡이, Object_3: 닫힌 손잡이
+                // Object_4: 열린 캐노피, Object_5: 열린 캐노피 부분
+                const name = child.name;
+                if (name === 'Object_2' || name === 'Object_3') {
+                    // 닫힌 우산 파트 (y좌표 기준으로 구분)
+                    // Object_2는 y가 0~1.7 범위 = 닫힌 우산
+                    closedParts.push(child);
+                } else if (name === 'Object_4' || name === 'Object_5') {
+                    // 열린 우산 파트
+                    openParts.push(child);
+                    child.visible = false;
+                }
 
-        // -- 손잡이: J자형 -- 비율 조정 (짧게)
-        const shaftGeo = new THREE.CylinderGeometry(0.04, 0.04, 1.8, 12);
-        const shaftMat = new THREE.MeshPhongMaterial({ color: 0x3d2b1f, shininess: 100, specular: 0x444444 });
-        const shaft = new THREE.Mesh(shaftGeo, shaftMat);
-        shaft.position.y = -0.4;
-
-        // J자 커브
-        const handleCurveGeo = new THREE.TorusGeometry(0.2, 0.04, 12, 20, Math.PI);
-        const handleCurveMat = new THREE.MeshPhongMaterial({ color: 0x3d2b1f, shininess: 100, specular: 0x444444 });
-        const handleCurve = new THREE.Mesh(handleCurveGeo, handleCurveMat);
-        handleCurve.position.y = -1.3;
-        handleCurve.position.x = 0.2;
-        handleCurve.rotation.z = Math.PI / 2;
-        handleCurve.rotation.x = Math.PI / 2;
-
-        // 손잡이 끝 마감 구
-        const handleEndGeo = new THREE.SphereGeometry(0.06, 10, 10);
-        const handleEndMat = new THREE.MeshPhongMaterial({ color: 0x3d2b1f, shininess: 100 });
-        const handleEnd = new THREE.Mesh(handleEndGeo, handleEndMat);
-        handleEnd.position.set(0.4, -1.3, 0);
-
-        // -- 꼭대기 팁 --
-        const topTipGeo = new THREE.ConeGeometry(0.05, 0.12, 8);
-        const topTipMat = new THREE.MeshPhongMaterial({ color: 0x1a1a1a, shininess: 60 });
-        const topTip = new THREE.Mesh(topTipGeo, topTipMat);
-        topTip.position.y = 0.95;
-
-        // -- 접힌 캐노피 (슬림, 천 질감 표현) --
-        const closedCanopyGeo = new THREE.CylinderGeometry(0.04, 0.2, 1.4, 16);
-        const closedCanopyMat = new THREE.MeshPhongMaterial({
-            color: 0xc0392b, shininess: 15, specular: 0x111111
-        });
-        const closedCanopy = new THREE.Mesh(closedCanopyGeo, closedCanopyMat);
-        closedCanopy.position.y = 0.35;
-
-        // 접힌 상태 밴드
-        const bandGeo = new THREE.TorusGeometry(0.13, 0.02, 8, 20);
-        const bandMat = new THREE.MeshPhongMaterial({ color: 0x111111, shininess: 40 });
-        const band = new THREE.Mesh(bandGeo, bandMat);
-        band.position.y = 0.1;
-        band.rotation.x = Math.PI / 2;
-
-        // -- 펼친 캐노피 (8각 패널 구조 — 실제 우산처럼 패널 사이 골 표현) --
-        const panelCount = 8;
-        const openCanopyGroup = new THREE.Group();
-
-        for (let i = 0; i < panelCount; i++) {
-            // 각 패널을 개별 LatheGeometry 섹터로
-            const panelProfile = [];
-            const pSegments = 12;
-            for (let j = 0; j <= pSegments; j++) {
-                const t = j / pSegments;
-                const x = t * 1.8;
-                // 패널 사이 골이 생기도록 살짝 오목하게
-                const baseY = (1.0 - Math.pow(t, 1.3)) * 0.6;
-                const y = baseY;
-                panelProfile.push(new THREE.Vector2(x, y));
-            }
-
-            const panelGeo = new THREE.LatheGeometry(panelProfile, 4, 
-                (Math.PI * 2 / panelCount) * i, 
-                (Math.PI * 2 / panelCount)
-            );
-            // 패널 색상 교대 (진한빨강 / 살짝 다른 빨강)
-            const panelColor = i % 2 === 0 ? 0xc0392b : 0xa93226;
-            const panelMat = new THREE.MeshPhongMaterial({
-                color: panelColor,
-                side: THREE.DoubleSide,
-                shininess: 20,
-                specular: 0x222222
-            });
-            const panel = new THREE.Mesh(panelGeo, panelMat);
-            openCanopyGroup.add(panel);
-        }
-        openCanopyGroup.position.y = 0.5;
-        openCanopyGroup.visible = false;
-
-        // 캐노피 가장자리 림
-        const rimGeo = new THREE.TorusGeometry(1.8, 0.02, 8, 48);
-        const rimMat = new THREE.MeshPhongMaterial({ color: 0x111111, shininess: 60 });
-        const rim = new THREE.Mesh(rimGeo, rimMat);
-        rim.position.y = 0.5 + 0.0; // 가장자리 높이
-        rim.rotation.x = Math.PI / 2;
-        rim.visible = false;
-
-        // 살 (리브) — 더 많이, 더 정교하게
-        const ribsGroup = new THREE.Group();
-        const ribCount = 8;
-        for (let i = 0; i < ribCount; i++) {
-            const curve = new THREE.CubicBezierCurve3(
-                new THREE.Vector3(0, 0.5 + 0.6, 0),
-                new THREE.Vector3(0.5, 0.5 + 0.55, 0),
-                new THREE.Vector3(1.2, 0.5 + 0.25, 0),
-                new THREE.Vector3(1.75, 0.5 + 0.0, 0)
-            );
-            const ribTubeGeo = new THREE.TubeGeometry(curve, 16, 0.018, 6, false);
-            const ribMat = new THREE.MeshPhongMaterial({ color: 0x1a1a1a, shininess: 40 });
-            const rib = new THREE.Mesh(ribTubeGeo, ribMat);
-            rib.rotation.y = (Math.PI * 2 / ribCount) * i;
-            ribsGroup.add(rib);
-
-            // 리브 끝 캡 (우산 끝 돌출)
-            const capGeo = new THREE.SphereGeometry(0.03, 6, 6);
-            const capMat = new THREE.MeshPhongMaterial({ color: 0x111111 });
-            const cap = new THREE.Mesh(capGeo, capMat);
-            const angle = (Math.PI * 2 / ribCount) * i;
-            cap.position.set(Math.cos(angle) * 1.78, 0.5, Math.sin(angle) * 1.78);
-            ribsGroup.add(cap);
-        }
-        ribsGroup.visible = false;
-
-        // 조립
-        umbrellaGroup.add(shaft, handleCurve, handleEnd, topTip, closedCanopy, band, openCanopyGroup, rim, ribsGroup);
-        umbrellaGroup.position.set(0, -0.5, 0);
-        umbrellaGroup.scale.set(1.8, 1.8, 1.8);
-        scene.add(umbrellaGroup);
-
-        // === 태양 (PS1 셰이더) ===
-        const sunGroup = new THREE.Group();
-        sunGroup.position.set(2.5, 6, -2);
-
-        // 텍스처
-        const faceCanvas = document.createElement('canvas');
-        faceCanvas.width = 128;
-        faceCanvas.height = 128;
-        const fctx = faceCanvas.getContext('2d');
-
-        fctx.fillStyle = '#FFB800';
-        fctx.fillRect(0, 0, 128, 128);
-
-        // 눈
-        fctx.fillStyle = '#000';
-        fctx.beginPath(); fctx.ellipse(42, 50, 10, 12, 0, 0, Math.PI * 2); fctx.fill();
-        fctx.beginPath(); fctx.ellipse(86, 50, 10, 12, 0, 0, Math.PI * 2); fctx.fill();
-
-        // 눈 하이라이트
-        fctx.fillStyle = '#fff';
-        fctx.beginPath(); fctx.arc(45, 46, 4, 0, Math.PI * 2); fctx.fill();
-        fctx.beginPath(); fctx.arc(89, 46, 4, 0, Math.PI * 2); fctx.fill();
-
-        // 코
-        fctx.fillStyle = '#E8960C';
-        fctx.beginPath(); fctx.arc(64, 68, 5, 0, Math.PI * 2); fctx.fill();
-
-        // 입
-        fctx.strokeStyle = '#000'; fctx.lineWidth = 4;
-        fctx.beginPath(); fctx.arc(64, 78, 22, 0.1, Math.PI - 0.1); fctx.stroke();
-
-        // 이빨
-        fctx.fillStyle = '#fff';
-        fctx.fillRect(50, 82, 7, 8); fctx.fillRect(60, 82, 7, 8); fctx.fillRect(70, 82, 7, 8);
-        fctx.strokeStyle = '#000'; fctx.lineWidth = 1;
-        fctx.strokeRect(50, 82, 7, 8); fctx.strokeRect(60, 82, 7, 8); fctx.strokeRect(70, 82, 7, 8);
-
-        // 볼터치
-        fctx.fillStyle = 'rgba(255, 80, 80, 0.4)';
-        fctx.beginPath(); fctx.ellipse(28, 70, 8, 5, 0, 0, Math.PI * 2); fctx.fill();
-        fctx.beginPath(); fctx.ellipse(100, 70, 8, 5, 0, 0, Math.PI * 2); fctx.fill();
-
-        const sunTexture = new THREE.CanvasTexture(faceCanvas);
-        sunTexture.magFilter = THREE.NearestFilter;
-        sunTexture.minFilter = THREE.NearestFilter;
-
-        // PS1 셰이더
-        const sunVertShader = `
-            uniform float time;
-            varying vec2 vUv;
-            void main() {
-                vUv = uv;
-                vec3 pos = position;
-                float gridSize = 40.0;
-                vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
-                mvPos.xyz = floor(mvPos.xyz * gridSize) / gridSize;
-                gl_Position = projectionMatrix * mvPos;
-            }
-        `;
-        const sunFragShader = `
-            uniform sampler2D faceTexture;
-            uniform float time;
-            varying vec2 vUv;
-            void main() {
-                vec2 uv = vUv;
-                uv.x += sin(uv.y * 10.0 + time * 2.0) * 0.015;
-                uv.y += cos(uv.x * 10.0 + time * 1.5) * 0.015;
-                vec4 texColor = texture2D(faceTexture, uv);
-                gl_FragColor = texColor;
-            }
-        `;
-
-        const sunMaterial = new THREE.ShaderMaterial({
-            uniforms: { faceTexture: { value: sunTexture }, time: { value: 0 } },
-            vertexShader: sunVertShader,
-            fragmentShader: sunFragShader
-        });
-
-        const sunGeo = new THREE.SphereGeometry(1.2, 10, 8);
-        const sunMesh = new THREE.Mesh(sunGeo, sunMaterial);
-        sunGroup.add(sunMesh);
-
-        // 광선
-        for (let i = 0; i < 12; i++) {
-            const rayGeo = new THREE.ConeGeometry(0.15, 0.8, 4);
-            const rayMat = new THREE.MeshBasicMaterial({ color: 0xFFB800 });
-            const ray = new THREE.Mesh(rayGeo, rayMat);
-            const angle = (Math.PI * 2 / 12) * i;
-            ray.position.set(Math.cos(angle) * 1.6, Math.sin(angle) * 1.6, 0);
-            ray.rotation.z = angle - Math.PI / 2;
-            sunGroup.add(ray);
-        }
-        scene.add(sunGroup);
-
-        // === 상태 ===
-        let isOpen = false;
-        let targetSunY = 6;
-        let rainOpacity = 0.6;
-        let time = 0;
-        let mouseX = 0, mouseY = 0;
-
-        document.addEventListener('mousemove', (e) => {
-            mouseX = (e.clientX / window.innerWidth) * 2 - 1;
-            mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
-        });
-
-        // 클릭 감지
-        const raycaster = new THREE.Raycaster();
-        const clickVec = new THREE.Vector2();
-
-        canvas.addEventListener('click', (e) => {
-            clickVec.x = (e.clientX / window.innerWidth) * 2 - 1;
-            clickVec.y = -(e.clientY / window.innerHeight) * 2 + 1;
-            raycaster.setFromCamera(clickVec, camera);
-            const hits = raycaster.intersectObjects(umbrellaGroup.children, true);
-
-            if (hits.length > 0) {
-                isOpen = !isOpen;
-                if (isOpen) {
-                    closedCanopy.visible = false;
-                    band.visible = false;
-                    openCanopyGroup.visible = true;
-                    ribsGroup.visible = true;
-                    rim.visible = true;
-                    targetSunY = 2.5;
-                    rainOpacity = 0;
-                    document.body.classList.add('sunny');
-                    dirLight.color.set(0xfff4d6);
-                    dirLight.intensity = 1.2;
-                    ambientLight.intensity = 1.2;
-                } else {
-                    closedCanopy.visible = true;
-                    band.visible = true;
-                    openCanopyGroup.visible = false;
-                    ribsGroup.visible = false;
-                    rim.visible = false;
-                    targetSunY = 6;
-                    rainOpacity = 0.6;
-                    document.body.classList.remove('sunny');
-                    dirLight.color.set(0xffffff);
-                    dirLight.intensity = 0.6;
-                    ambientLight.intensity = 0.8;
+                // 손잡이는 갈색으로
+                if (name === 'Object_2' || name === 'Object_3') {
+                    // 높이가 낮은 부분은 손잡이
                 }
             }
         });
 
-        // === 애니메이션 ===
-        function animate() {
-            requestAnimationFrame(animate);
-            time += 0.016;
+        // 머테리얼 색상 보정
+        model.traverse((child) => {
+            if (child.isMesh) {
+                if (child.material.name.includes('handel')) {
+                    child.material.color.set(0x3d2b1f);
+                    child.material.roughness = 0.4;
+                } else if (child.material.name.includes('main')) {
+                    child.material.color.set(0xc0392b);
+                    child.material.roughness = 0.7;
+                }
+            }
+        });
 
-            // 우산 기울기 — 마우스 따라
-            const tiltAmount = isOpen ? 0.2 : 0.12;
+        umbrellaGroup.add(model);
+        umbrellaGroup.scale.set(2.0, 2.0, 2.0);
+        umbrellaGroup.position.set(0, -1.5, 0);
+        scene.add(umbrellaGroup);
+        modelLoaded = true;
+    });
+
+    // === 태양 (PS1 셰이더) ===
+    const sunGroup = new THREE.Group();
+    sunGroup.position.set(2.5, 7, -2);
+
+    // 텍스처
+    const faceCanvas = document.createElement('canvas');
+    faceCanvas.width = 128;
+    faceCanvas.height = 128;
+    const fctx = faceCanvas.getContext('2d');
+
+    fctx.fillStyle = '#FFB800';
+    fctx.fillRect(0, 0, 128, 128);
+
+    fctx.fillStyle = '#000';
+    fctx.beginPath(); fctx.ellipse(42, 50, 10, 12, 0, 0, Math.PI * 2); fctx.fill();
+    fctx.beginPath(); fctx.ellipse(86, 50, 10, 12, 0, 0, Math.PI * 2); fctx.fill();
+
+    fctx.fillStyle = '#fff';
+    fctx.beginPath(); fctx.arc(45, 46, 4, 0, Math.PI * 2); fctx.fill();
+    fctx.beginPath(); fctx.arc(89, 46, 4, 0, Math.PI * 2); fctx.fill();
+
+    fctx.fillStyle = '#E8960C';
+    fctx.beginPath(); fctx.arc(64, 68, 5, 0, Math.PI * 2); fctx.fill();
+
+    fctx.strokeStyle = '#000'; fctx.lineWidth = 4;
+    fctx.beginPath(); fctx.arc(64, 78, 22, 0.1, Math.PI - 0.1); fctx.stroke();
+
+    fctx.fillStyle = '#fff';
+    fctx.fillRect(50, 82, 7, 8); fctx.fillRect(60, 82, 7, 8); fctx.fillRect(70, 82, 7, 8);
+    fctx.strokeStyle = '#000'; fctx.lineWidth = 1;
+    fctx.strokeRect(50, 82, 7, 8); fctx.strokeRect(60, 82, 7, 8); fctx.strokeRect(70, 82, 7, 8);
+
+    fctx.fillStyle = 'rgba(255, 80, 80, 0.4)';
+    fctx.beginPath(); fctx.ellipse(28, 70, 8, 5, 0, 0, Math.PI * 2); fctx.fill();
+    fctx.beginPath(); fctx.ellipse(100, 70, 8, 5, 0, 0, Math.PI * 2); fctx.fill();
+
+    const sunTexture = new THREE.CanvasTexture(faceCanvas);
+    sunTexture.magFilter = THREE.NearestFilter;
+    sunTexture.minFilter = THREE.NearestFilter;
+
+    const sunVertShader = `
+        uniform float time;
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            vec3 pos = position;
+            float gridSize = 40.0;
+            vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
+            mvPos.xyz = floor(mvPos.xyz * gridSize) / gridSize;
+            gl_Position = projectionMatrix * mvPos;
+        }
+    `;
+    const sunFragShader = `
+        uniform sampler2D faceTexture;
+        uniform float time;
+        varying vec2 vUv;
+        void main() {
+            vec2 uv = vUv;
+            uv.x += sin(uv.y * 10.0 + time * 2.0) * 0.015;
+            uv.y += cos(uv.x * 10.0 + time * 1.5) * 0.015;
+            vec4 texColor = texture2D(faceTexture, uv);
+            gl_FragColor = texColor;
+        }
+    `;
+
+    const sunMaterial = new THREE.ShaderMaterial({
+        uniforms: { faceTexture: { value: sunTexture }, time: { value: 0 } },
+        vertexShader: sunVertShader,
+        fragmentShader: sunFragShader
+    });
+
+    const sunGeo = new THREE.SphereGeometry(1.2, 10, 8);
+    const sunMesh = new THREE.Mesh(sunGeo, sunMaterial);
+    sunGroup.add(sunMesh);
+
+    for (let i = 0; i < 12; i++) {
+        const rayGeo = new THREE.ConeGeometry(0.15, 0.8, 4);
+        const rayMat = new THREE.MeshBasicMaterial({ color: 0xFFB800 });
+        const ray = new THREE.Mesh(rayGeo, rayMat);
+        const angle = (Math.PI * 2 / 12) * i;
+        ray.position.set(Math.cos(angle) * 1.6, Math.sin(angle) * 1.6, 0);
+        ray.rotation.z = angle - Math.PI / 2;
+        sunGroup.add(ray);
+    }
+    scene.add(sunGroup);
+
+    // === 상태 & 인터랙션 ===
+    let isOpen = false;
+    let targetSunY = 7;
+    let rainOpacity = 0.6;
+    let time = 0;
+    let mouseX = 0, mouseY = 0;
+
+    document.addEventListener('mousemove', (e) => {
+        mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+        mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
+    });
+
+    const raycaster = new THREE.Raycaster();
+    const clickVec = new THREE.Vector2();
+
+    canvas.addEventListener('click', (e) => {
+        if (!modelLoaded) return;
+
+        clickVec.x = (e.clientX / window.innerWidth) * 2 - 1;
+        clickVec.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        raycaster.setFromCamera(clickVec, camera);
+        const hits = raycaster.intersectObjects(umbrellaGroup.children, true);
+
+        if (hits.length > 0) {
+            isOpen = !isOpen;
+            if (isOpen) {
+                closedParts.forEach(p => p.visible = false);
+                openParts.forEach(p => p.visible = true);
+                targetSunY = 2.8;
+                rainOpacity = 0;
+                document.body.classList.add('sunny');
+                dirLight.color.set(0xfff4d6);
+                dirLight.intensity = 1.5;
+                ambientLight.intensity = 1.5;
+            } else {
+                closedParts.forEach(p => p.visible = true);
+                openParts.forEach(p => p.visible = false);
+                targetSunY = 7;
+                rainOpacity = 0.6;
+                document.body.classList.remove('sunny');
+                dirLight.color.set(0xffffff);
+                dirLight.intensity = 0.8;
+                ambientLight.intensity = 1.0;
+            }
+        }
+    });
+
+    // === 애니메이션 ===
+    function animate() {
+        requestAnimationFrame(animate);
+        time += 0.016;
+
+        // 우산 기울기
+        if (modelLoaded) {
+            const tiltAmount = isOpen ? 0.15 : 0.1;
             const targetRotX = mouseY * tiltAmount;
             const targetRotZ = -mouseX * tiltAmount;
             umbrellaGroup.rotation.x += (targetRotX - umbrellaGroup.rotation.x) * 0.04;
             umbrellaGroup.rotation.z += (targetRotZ - umbrellaGroup.rotation.z) * 0.04;
-
-            // 부유감
-            umbrellaGroup.position.y = -0.3 + Math.sin(time * 1.2) * 0.06;
-
-            // 태양
-            sunGroup.position.y += (targetSunY - sunGroup.position.y) * 0.025;
-            sunMesh.rotation.y += 0.006;
-            sunMaterial.uniforms.time.value = time;
-
-            // 비
-            rainMat.opacity += (rainOpacity - rainMat.opacity) * 0.04;
-            const pos = rainGeo.attributes.position.array;
-            for (let i = 0; i < rainCount; i++) {
-                pos[i * 3 + 1] -= rainVelocities[i];
-                if (pos[i * 3 + 1] < -5) {
-                    pos[i * 3 + 1] = 10;
-                    pos[i * 3] = (Math.random() - 0.5) * 20;
-                }
-            }
-            rainGeo.attributes.position.needsUpdate = true;
-
-            renderer.render(scene, camera);
+            umbrellaGroup.position.y = -1.5 + Math.sin(time * 1.2) * 0.05;
         }
-        animate();
-    })();
+
+        // 태양
+        sunGroup.position.y += (targetSunY - sunGroup.position.y) * 0.025;
+        sunMesh.rotation.y += 0.006;
+        sunMaterial.uniforms.time.value = time;
+
+        // 비
+        rainMat.opacity += (rainOpacity - rainMat.opacity) * 0.04;
+        const pos = rainGeo.attributes.position.array;
+        for (let i = 0; i < rainCount; i++) {
+            pos[i * 3 + 1] -= rainVelocities[i];
+            if (pos[i * 3 + 1] < -5) {
+                pos[i * 3 + 1] = 10;
+                pos[i * 3] = (Math.random() - 0.5) * 20;
+            }
+        }
+        rainGeo.attributes.position.needsUpdate = true;
+
+        renderer.render(scene, camera);
+    }
+    animate();
     </script>
 </body>
 </html>
