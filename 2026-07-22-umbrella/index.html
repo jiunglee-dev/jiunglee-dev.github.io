@@ -73,8 +73,8 @@
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.set(0, 1, 6);
-    camera.lookAt(0, 0.5, 0);
+    camera.position.set(0, 0.8, 4);
+    camera.lookAt(0, 0.8, 0);
 
     window.addEventListener('resize', () => {
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -137,8 +137,8 @@
         });
 
         // 세트 구분:
-        // 닫힌 우산 = meshes[0] (손잡이) + meshes[3] (접힌 천)
-        // 열린 우산 = meshes[1] (손잡이) + meshes[2] (펼친 캐노피)
+        // 닫힌 우산 = meshes[0] (손잡이) + meshes[3] (접힌 천) → 원본 위치 그대로
+        // 열린 우산 = meshes[1] (손잡이) + meshes[2] (펼친 캐노피) → 원본 위치 그대로
         closedParts.push(meshes[0], meshes[3]);
         openParts.push(meshes[1], meshes[2]);
 
@@ -146,8 +146,9 @@
         openParts.forEach(p => p.visible = false);
 
         umbrellaGroup.add(model);
-        umbrellaGroup.scale.set(2.0, 2.0, 2.0);
-        umbrellaGroup.position.set(0, -1.5, 0);
+        // 원본 스케일 유지, 위치만 조정해서 닫힌 우산이 화면 중앙에 오도록
+        umbrellaGroup.scale.set(1.0, 1.0, 1.0);
+        umbrellaGroup.position.set(0, -0.8, 0);
         scene.add(umbrellaGroup);
         modelLoaded = true;
     });
@@ -297,7 +298,7 @@
             const targetRotZ = -mouseX * tiltAmount;
             umbrellaGroup.rotation.x += (targetRotX - umbrellaGroup.rotation.x) * 0.04;
             umbrellaGroup.rotation.z += (targetRotZ - umbrellaGroup.rotation.z) * 0.04;
-            umbrellaGroup.position.y = -1.5 + Math.sin(time * 1.2) * 0.05;
+            umbrellaGroup.position.y = -0.8 + Math.sin(time * 1.2) * 0.03;
         }
 
         // 태양
