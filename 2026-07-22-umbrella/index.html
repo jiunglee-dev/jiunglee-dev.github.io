@@ -144,15 +144,16 @@
         meshes[1].visible = false;
         meshes[3].visible = false;
 
+        // 손잡이(meshes[0]) 길이 1.2배로 늘리기
+        meshes[0].scale.set(1, 1.2, 1);
+
         // meshes[2] = 펼친 캐노피 — 초기에 숨김
         meshes[2].visible = false;
         openParts.push(meshes[2]);
 
-        // 접힌 상태: 코드로 만든 가느다란 원뿔을 손잡이 위에 배치
-        // 접힌 천: 장우산 느낌 — 길고, 위쪽 두꺼움, 펼친 캐노피와 상단 높이 맞춤
-        // 펼친 캐노피 상단 y ≈ 1.72
-        // 원뿔: 위가 두껍고(반경 0.15) 아래가 가늠(0.03), 높이 1.8
-        const closedGeo = new THREE.CylinderGeometry(0.03, 0.2, 2.16, 12);
+        // 접힌 천: 위가 두껍고 아래가 가느다란 형태
+        // CylinderGeometry(상단반경, 하단반경, 높이)
+        const closedGeo = new THREE.CylinderGeometry(0.2, 0.03, 2.16, 12);
         const closedMat = new THREE.MeshPhongMaterial({ color: 0xc0392b, roughness: 0.6 });
         const closedCone = new THREE.Mesh(closedGeo, closedMat);
         closedCone.position.set(0, 0.64, 0);
