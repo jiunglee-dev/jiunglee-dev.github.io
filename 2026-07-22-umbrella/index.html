@@ -319,7 +319,8 @@
         // 태양 — 마우스를 부드럽게 따라다님
         const targetSunX = mouseX * 2.5;
         const targetSunZ = mouseY * 1.5;
-        sunGroup.position.y += (targetSunY - sunGroup.position.y) * 0.025;
+        const targetSunYMouse = targetSunY + mouseY * 1.0;
+        sunGroup.position.y += (targetSunYMouse - sunGroup.position.y) * 0.025;
         sunGroup.position.x += (targetSunX - sunGroup.position.x) * 0.03;
         sunGroup.position.z += (targetSunZ - sunGroup.position.z) * 0.03;
         sunMesh.rotation.y += 0.006;
