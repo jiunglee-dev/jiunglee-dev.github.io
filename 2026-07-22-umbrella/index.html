@@ -84,90 +84,124 @@
         const rain = new THREE.Points(rainGeo, rainMat);
         scene.add(rain);
 
-        // === 우산 3D 모델 ===
+        // === 우산 3D 모델 (PS2 디테일) ===
         const umbrellaGroup = new THREE.Group();
 
-        // -- 손잡이: J자형 지팡이 핸들 --
-        // 곧은 봉 부분
-        const shaftGeo = new THREE.CylinderGeometry(0.05, 0.05, 3.0, 12);
-        const shaftMat = new THREE.MeshPhongMaterial({ color: 0x3d2b1f, shininess: 80 });
+        // -- 손잡이: J자형 -- 비율 조정 (짧게)
+        const shaftGeo = new THREE.CylinderGeometry(0.04, 0.04, 1.8, 12);
+        const shaftMat = new THREE.MeshPhongMaterial({ color: 0x3d2b1f, shininess: 100, specular: 0x444444 });
         const shaft = new THREE.Mesh(shaftGeo, shaftMat);
-        shaft.position.y = -0.5;
+        shaft.position.y = -0.4;
 
-        // J자 커브 (TorusGeometry로 반원)
-        const handleCurveGeo = new THREE.TorusGeometry(0.22, 0.05, 8, 16, Math.PI);
-        const handleCurveMat = new THREE.MeshPhongMaterial({ color: 0x3d2b1f, shininess: 80 });
+        // J자 커브
+        const handleCurveGeo = new THREE.TorusGeometry(0.2, 0.04, 12, 20, Math.PI);
+        const handleCurveMat = new THREE.MeshPhongMaterial({ color: 0x3d2b1f, shininess: 100, specular: 0x444444 });
         const handleCurve = new THREE.Mesh(handleCurveGeo, handleCurveMat);
-        handleCurve.position.y = -2.0;
-        handleCurve.position.x = 0.22;
+        handleCurve.position.y = -1.3;
+        handleCurve.position.x = 0.2;
         handleCurve.rotation.z = Math.PI / 2;
         handleCurve.rotation.x = Math.PI / 2;
 
-        // -- 꼭대기 팁 --
-        const topTipGeo = new THREE.SphereGeometry(0.07, 8, 8);
-        const topTipMat = new THREE.MeshPhongMaterial({ color: 0x1a1a1a });
-        const topTip = new THREE.Mesh(topTipGeo, topTipMat);
-        topTip.position.y = 1.0;
+        // 손잡이 끝 마감 구
+        const handleEndGeo = new THREE.SphereGeometry(0.06, 10, 10);
+        const handleEndMat = new THREE.MeshPhongMaterial({ color: 0x3d2b1f, shininess: 100 });
+        const handleEnd = new THREE.Mesh(handleEndGeo, handleEndMat);
+        handleEnd.position.set(0.4, -1.3, 0);
 
-        // -- 접힌 캐노피 (슬림한 원뿔) --
-        const closedCanopyGeo = new THREE.CylinderGeometry(0.03, 0.18, 2.0, 12);
+        // -- 꼭대기 팁 --
+        const topTipGeo = new THREE.ConeGeometry(0.05, 0.12, 8);
+        const topTipMat = new THREE.MeshPhongMaterial({ color: 0x1a1a1a, shininess: 60 });
+        const topTip = new THREE.Mesh(topTipGeo, topTipMat);
+        topTip.position.y = 0.95;
+
+        // -- 접힌 캐노피 (슬림, 천 질감 표현) --
+        const closedCanopyGeo = new THREE.CylinderGeometry(0.04, 0.2, 1.4, 16);
         const closedCanopyMat = new THREE.MeshPhongMaterial({
-            color: 0xc0392b, flatShading: false, shininess: 20
+            color: 0xc0392b, shininess: 15, specular: 0x111111
         });
         const closedCanopy = new THREE.Mesh(closedCanopyGeo, closedCanopyMat);
-        closedCanopy.position.y = 0.6;
+        closedCanopy.position.y = 0.35;
 
-        // 접힌 상태 밴드 (중간에 묶인 느낌)
-        const bandGeo = new THREE.TorusGeometry(0.14, 0.02, 8, 16);
-        const bandMat = new THREE.MeshPhongMaterial({ color: 0x222222 });
+        // 접힌 상태 밴드
+        const bandGeo = new THREE.TorusGeometry(0.13, 0.02, 8, 20);
+        const bandMat = new THREE.MeshPhongMaterial({ color: 0x111111, shininess: 40 });
         const band = new THREE.Mesh(bandGeo, bandMat);
-        band.position.y = 0.3;
+        band.position.y = 0.1;
         band.rotation.x = Math.PI / 2;
 
-        // -- 펼친 캐노피 (Lathe로 부드러운 곡면) --
-        // 우산 단면 프로파일 — 위로 볼록, 가장자리에서 살짝 아래로 내려오는 형태
-        const canopyProfile = [];
-        const segments = 20;
-        for (let i = 0; i <= segments; i++) {
-            const t = i / segments;
-            const x = t * 1.6; // 반지름
-            // 꼭대기(중심)가 높고, 바깥으로 갈수록 내려가는 곡선
-            const y = (1.0 - Math.pow(t, 1.2)) * 0.7;
-            canopyProfile.push(new THREE.Vector2(x, y));
+        // -- 펼친 캐노피 (8각 패널 구조 — 실제 우산처럼 패널 사이 골 표현) --
+        const panelCount = 8;
+        const openCanopyGroup = new THREE.Group();
+
+        for (let i = 0; i < panelCount; i++) {
+            // 각 패널을 개별 LatheGeometry 섹터로
+            const panelProfile = [];
+            const pSegments = 12;
+            for (let j = 0; j <= pSegments; j++) {
+                const t = j / pSegments;
+                const x = t * 1.8;
+                // 패널 사이 골이 생기도록 살짝 오목하게
+                const baseY = (1.0 - Math.pow(t, 1.3)) * 0.6;
+                const y = baseY;
+                panelProfile.push(new THREE.Vector2(x, y));
+            }
+
+            const panelGeo = new THREE.LatheGeometry(panelProfile, 4, 
+                (Math.PI * 2 / panelCount) * i, 
+                (Math.PI * 2 / panelCount)
+            );
+            // 패널 색상 교대 (진한빨강 / 살짝 다른 빨강)
+            const panelColor = i % 2 === 0 ? 0xc0392b : 0xa93226;
+            const panelMat = new THREE.MeshPhongMaterial({
+                color: panelColor,
+                side: THREE.DoubleSide,
+                shininess: 20,
+                specular: 0x222222
+            });
+            const panel = new THREE.Mesh(panelGeo, panelMat);
+            openCanopyGroup.add(panel);
         }
+        openCanopyGroup.position.y = 0.5;
+        openCanopyGroup.visible = false;
 
-        const openCanopyGeo = new THREE.LatheGeometry(canopyProfile, 32);
-        const openCanopyMat = new THREE.MeshPhongMaterial({
-            color: 0xc0392b,
-            side: THREE.DoubleSide,
-            shininess: 30,
-            flatShading: false
-        });
-        const openCanopy = new THREE.Mesh(openCanopyGeo, openCanopyMat);
-        openCanopy.position.y = 0.8;
-        openCanopy.visible = false;
+        // 캐노피 가장자리 림
+        const rimGeo = new THREE.TorusGeometry(1.8, 0.02, 8, 48);
+        const rimMat = new THREE.MeshPhongMaterial({ color: 0x111111, shininess: 60 });
+        const rim = new THREE.Mesh(rimGeo, rimMat);
+        rim.position.y = 0.5 + 0.0; // 가장자리 높이
+        rim.rotation.x = Math.PI / 2;
+        rim.visible = false;
 
-        // 펼친 캐노피 살 (리브) — 캐노피 곡면을 따라가도록
+        // 살 (리브) — 더 많이, 더 정교하게
         const ribsGroup = new THREE.Group();
         const ribCount = 8;
         for (let i = 0; i < ribCount; i++) {
-            const curve = new THREE.QuadraticBezierCurve3(
-                new THREE.Vector3(0, 0.8 + 0.7, 0),       // 꼭대기 (중심 높이)
-                new THREE.Vector3(0.9, 0.8 + 0.35, 0),    // 중간
-                new THREE.Vector3(1.55, 0.8 + 0.0, 0)     // 가장자리
+            const curve = new THREE.CubicBezierCurve3(
+                new THREE.Vector3(0, 0.5 + 0.6, 0),
+                new THREE.Vector3(0.5, 0.5 + 0.55, 0),
+                new THREE.Vector3(1.2, 0.5 + 0.25, 0),
+                new THREE.Vector3(1.75, 0.5 + 0.0, 0)
             );
-            const ribTubeGeo = new THREE.TubeGeometry(curve, 12, 0.015, 4, false);
-            const ribMat = new THREE.MeshBasicMaterial({ color: 0x1a1a1a });
+            const ribTubeGeo = new THREE.TubeGeometry(curve, 16, 0.018, 6, false);
+            const ribMat = new THREE.MeshPhongMaterial({ color: 0x1a1a1a, shininess: 40 });
             const rib = new THREE.Mesh(ribTubeGeo, ribMat);
             rib.rotation.y = (Math.PI * 2 / ribCount) * i;
             ribsGroup.add(rib);
+
+            // 리브 끝 캡 (우산 끝 돌출)
+            const capGeo = new THREE.SphereGeometry(0.03, 6, 6);
+            const capMat = new THREE.MeshPhongMaterial({ color: 0x111111 });
+            const cap = new THREE.Mesh(capGeo, capMat);
+            const angle = (Math.PI * 2 / ribCount) * i;
+            cap.position.set(Math.cos(angle) * 1.78, 0.5, Math.sin(angle) * 1.78);
+            ribsGroup.add(cap);
         }
         ribsGroup.visible = false;
 
         // 조립
-        umbrellaGroup.add(shaft, handleCurve, topTip, closedCanopy, band, openCanopy, ribsGroup);
-        umbrellaGroup.position.set(0, -0.3, 0);
-        umbrellaGroup.scale.set(1.0, 1.0, 1.0);
+        umbrellaGroup.add(shaft, handleCurve, handleEnd, topTip, closedCanopy, band, openCanopyGroup, rim, ribsGroup);
+        umbrellaGroup.position.set(0, -0.2, 0);
+        umbrellaGroup.scale.set(1.1, 1.1, 1.1);
         scene.add(umbrellaGroup);
 
         // === 태양 (PS1 셰이더) ===
@@ -291,8 +325,9 @@
                 if (isOpen) {
                     closedCanopy.visible = false;
                     band.visible = false;
-                    openCanopy.visible = true;
+                    openCanopyGroup.visible = true;
                     ribsGroup.visible = true;
+                    rim.visible = true;
                     targetSunY = 2.5;
                     rainOpacity = 0;
                     document.body.classList.add('sunny');
@@ -302,8 +337,9 @@
                 } else {
                     closedCanopy.visible = true;
                     band.visible = true;
-                    openCanopy.visible = false;
+                    openCanopyGroup.visible = false;
                     ribsGroup.visible = false;
+                    rim.visible = false;
                     targetSunY = 6;
                     rainOpacity = 0.6;
                     document.body.classList.remove('sunny');
