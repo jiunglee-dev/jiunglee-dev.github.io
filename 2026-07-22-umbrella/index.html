@@ -140,31 +140,22 @@
         // 캐노피만 교체: meshes[3] = 접힌 천, meshes[2] = 펼친 캐노피
         // meshes[1] = 열린 손잡이 → 안 씀
 
-        // meshes[1] 숨기기
+        // meshes[1], meshes[3] 안 씀
         meshes[1].visible = false;
+        meshes[3].visible = false;
 
-        // 열린 캐노피 위치를 닫힌 손잡이 상단에 맞추기
-        // 닫힌 손잡이 상단 y = 1.7 (accessor 0 max y: 0.324 → GLB는 z-up이므로 실제론 z축)
-        // 실제 Three.js에서는 y축으로 로드됨
-        // 닫힌 손잡이(meshes[0]) max y: 1.7, 접힌 천(meshes[3]) y: -2.2 ~ -1.8
-        // 열린 캐노피(meshes[2]) y: 1.08 ~ 1.72
-        // 
-        // 접힌 천이 y -2.0 근처에 있다 = 원래 열린 우산 옆에 배치된 것
-        // 접힌 천을 손잡이 위치로 옮겨야 함!
-        // 손잡이(meshes[0]) y: 0~1.7
-        // 접힌 천(meshes[3]) y: -2.2~-1.8 → +2.0 해서 -0.2~0.2 근처로? 아니 그것도 이상함
-        //
-        // 다시 생각: 제작자가 닫힌 우산 = meshes[0] alone (y 0~1.7에 손잡이+접힌 천 전부)
-        // meshes[3]은 열린 우산의 디스크 파트일 수 있음
-        //
-        // 접근 변경: meshes[0]만 닫힌 우산 전체, meshes[2]만 펼친 캐노피로 교체
-        // meshes[2] y: 1.08~1.72 → 손잡이 상단(1.7)과 거의 맞음!
-        
+        // meshes[2] = 펼친 캐노피 — 초기에 숨김
         meshes[2].visible = false;
-        // meshes[3]은 접힌 천 — 기본 보임, 클릭하면 숨기고 meshes[2] 보이기
-
         openParts.push(meshes[2]);
-        closedParts.push(meshes[3]);
+
+        // 접힌 상태: 코드로 만든 가느다란 원뿔을 손잡이 위에 배치
+        const closedGeo = new THREE.ConeGeometry(0.06, 0.6, 12);
+        const closedMat = new THREE.MeshPhongMaterial({ color: 0xc0392b, roughness: 0.6 });
+        const closedCone = new THREE.Mesh(closedGeo, closedMat);
+        // 손잡이(meshes[0]) 상단 y ≈ 1.7, 원뿔 중심을 그 위에
+        closedCone.position.set(0, 1.4, 0);
+        umbrellaGroup.add(closedCone);
+        closedParts.push(closedCone);
 
         umbrellaGroup.add(model);
         umbrellaGroup.scale.set(1.0, 1.0, 1.0);
