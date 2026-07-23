@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>충치가 생기면 고통스러워</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            min-height: 100vh;
+            overflow: hidden;
+            background: #000;
+        }
+        canvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+        }
+        .hint {
+            position: fixed;
+            bottom: 40px; left: 50%;
+            transform: translateX(-50%);
+            color: rgba(0, 255, 100, 0.5);
+            font-size: 13px;
+            font-family: monospace;
+            z-index: 10;
+            transition: opacity 1s;
+        }
+        .hint.hidden { opacity: 0; }
+    </style>
+</head>
+<body>
+    <canvas id="c"></canvas>
+    <div class="hint" id="hint"></div>
+
+    <script>
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    let W, H;
+    function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+    resize();
+    window.addEventListener('resize', resize);
+
+    // === 게임 상태 ===
+    // 'intro' → 'guide' → 'play' → 'ending'
+    let gameState = 'intro';
+    let introStartTime = 0;
+    let guideStartTime = 0;
+    let playStartTime = 0;
+
+    const introText = '실험 준비 완료. 클릭 후 바람을 불어 충치를 가속시켜라.';
+    const guideText = '클릭하여 마이크를 켜거나, 마우스를 흔들어라.';
+    const endingText = '크큭...고통의 교향곡이 완성됐어. 지휘자는 — 충치균이었지.';
+
+    // === 어금니 외곽 포인트 ===
+    function getMolarOutline(w, h) {
+        const hw = w / 2;
+        const crownH = h * 0.5;
+        const neckY = crownH;
+        return [
+            // 교합면
+            { x: -hw * 0.75, y: 2 },
+            { x: -hw * 0.45, y: -2 },
+            { x: -hw * 0.15, y: 1 },
+            { x: hw * 0.15, y: -1 },
+            { x: hw * 0.45, y: 2 },
+            { x: hw * 0.75, y: -1 },
+            // 오른쪽 크라운
+            { x: hw * 0.9, y: crownH * 0.15 },
+            { x: hw * 0.97, y: crownH * 0.4 },
+            { x: hw * 0.93, y: crownH * 0.7 },
+            { x: hw * 0.8, y: crownH * 0.9 },
+            // 목
+            { x: hw * 0.55, y: neckY },
+            { x: hw * 0.5, y: neckY + 3 },
+            // 오른쪽 뿌리
+            { x: hw * 0.48, y: neckY + h * 0.08 },
+            { x: hw * 0.44, y: neckY + h * 0.18 },
+            { x: hw * 0.35, y: neckY + h * 0.32 },
+            { x: hw * 0.2, y: neckY + h * 0.42 },
+            { x: hw * 0.1, y: neckY + h * 0.5 },
+            // 뿌리 갈림
+            { x: 0, y: neckY + h * 0.2 },
+            // 왼쪽 뿌리
+            { x: -hw * 0.1, y: neckY + h * 0.5 },
+            { x: -hw * 0.2, y: neckY + h * 0.42 },
+            { x: -hw * 0.35, y: neckY + h * 0.32 },
+            { x: -hw * 0.44, y: neckY + h * 0.18 },
+            { x: -hw * 0.48, y: neckY + h * 0.08 },
+            // 목 왼쪽
+            { x: -hw * 0.5, y: neckY + 3 },
+            { x: -hw * 0.55, y: neckY },
+            // 왼쪽 크라운
+            { x: -hw * 0.8, y: crownH * 0.9 },
+            { x: -hw * 0.93, y: crownH * 0.7 },
+            { x: -hw * 0.97, y: crownH * 0.4 },
+            { x: -hw * 0.9, y: crownH * 0.15 },
+        ];
+    }
+
+    // === 어금니 클래스 ===
+    class Tooth {
+        constructor(x, isUpper, toothW, toothH, index) {
+            this.x = x;
+            this.isUpper = isUpper;
+            this.toothW = toothW;
+            this.toothH = toothH;
+            this.index = index;
+            this.phase = Math.random() * Math.PI * 2;
+            this.health = 100 + Math.random() * 30;
+            this.shakeX = 0;
+            this.shakeY = 0;
+            this.outline = getMolarOutline(toothW, toothH);
+
+            // 사라짐 연출 상태
+            this.dying = false;      // 죽는 중 (극한 디스토션)
+            this.deathTime = 0;      // 죽기 시작한 시점
+            this.deathDuration = 0.8; // 극한 디스토션 지속 시간 (초)
+            this.dead = false;       // 완전히 사라짐
+            this.opacity = 1;
+        }
+
+        update(blow, time, totalDamage) {
+            if (this.dead) return;
+
+            if (this.dying) {
+                // 극한 디스토션 후 사라짐
+                const elapsed = time - this.deathTime;
+                const progress = elapsed / this.deathDuration;
+                
+                if (progress >= 1) {
+                    this.dead = true;
+                    this.opacity = 0;
+                } else {
+                    // 폭발 직전: opacity는 끝에서 급격히 0
+                    this.opacity = progress < 0.7 ? 1 : 1 - ((progress - 0.7) / 0.3);
+                }
+                return;
+            }
+
+            // 흔들림 — 체력 낮을수록 더 격하게
+            const shakeMult = 1 + (130 - this.health) / 30;
+            const intensity = blow * 8 * shakeMult;
+            this.shakeX = Math.sin(time * 25 + this.phase) * intensity;
+            this.shakeY = Math.cos(time * 18 + this.phase) * intensity * 0.5;
+
+            if (blow > 0.1) {
+                this.health -= blow * 0.5;
+            }
+
+            // 우수수
+            if (totalDamage > 55) {
+                this.health -= 0.6 * (totalDamage / 70);
+            }
+
+            if (this.health <= 0) {
+                this.dying = true;
+                this.deathTime = time;
+            }
+        }
+
+        draw(ctx, time, blow, gumY) {
+            if (this.dead) return;
+            ctx.save();
+
+            const px = this.x + this.shakeX;
+            const offset = this.isUpper ? -(this.toothH * 0.5) : 0;
+            const py = gumY + offset + this.shakeY;
+
+            ctx.translate(px, py);
+            if (this.isUpper) ctx.scale(1, -1);
+            ctx.globalAlpha = this.opacity;
+
+            // 충치: 체력 낮을수록 색이 어두워짐
+            const healthRatio = Math.max(0, Math.min(1, this.health / 130));
+            const brightness = Math.floor(80 + healthRatio * 175);
+            const green = brightness;
+            const red = Math.floor(brightness * 0.1);
+            const blue = Math.floor(brightness * 0.4);
+            const color = `rgba(${red}, ${green}, ${blue}, ${0.85 * this.opacity})`;
+
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.5;
+            ctx.shadowColor = `rgb(${red}, ${green}, ${blue})`;
+            ctx.shadowBlur = 3 + blow * 4;
+
+            // === 디스토션 강도 결정 ===
+            let distortAmp, distortFreq, distortSpeed;
+            let numCopies = 0;
+
+            if (this.dying) {
+                // 죽는 중: 극한 디스토션 — 풀 사운드 굉음처럼
+                const elapsed = time - this.deathTime;
+                const progress = elapsed / this.deathDuration;
+                // 디스토션이 미친듯이 올라갔다가 마지막에 폭발
+                const deathIntensity = Math.sin(progress * Math.PI) * 2; // 0→2→0 곡선
+                distortAmp = 40 + deathIntensity * 60; // 최대 160px 왜곡
+                distortFreq = 8 + progress * 20;
+                distortSpeed = 20 + progress * 40;
+                numCopies = Math.min(5, Math.floor(progress * 8));
+                
+                // 라인 두께도 격해짐
+                ctx.lineWidth = 1.5 + deathIntensity * 2;
+                ctx.shadowBlur = 10 + deathIntensity * 15;
+            } else {
+                // 평소: 바람에 따른 환각 일그러짐
+                distortAmp = blow * 20;
+                distortFreq = 3 + blow * 8;
+                distortSpeed = 6 + blow * 15;
+                numCopies = blow > 0.15 ? Math.min(3, Math.floor(blow * 4)) : 0;
+            }
+
+            // 외곽선 — 형태 유지 + Y축 일그러짐
+            ctx.beginPath();
+            const pts = this.outline;
+            for (let i = 0; i < pts.length; i++) {
+                const p = pts[i];
+                const normalizedY = p.y / this.toothH;
+                const waveY = Math.sin(normalizedY * distortFreq * Math.PI + time * distortSpeed + this.phase) * distortAmp;
+                const waveX = Math.sin(time * 3 + i * 0.5 + this.phase) * (this.dying ? distortAmp * 0.3 : blow * 3);
+                const wx = p.x + waveX;
+                const wy = p.y + waveY;
+                if (i === 0) ctx.moveTo(wx, wy);
+                else ctx.lineTo(wx, wy);
+            }
+            ctx.closePath();
+            ctx.stroke();
+
+            // 잔상 복제 (고스트) — dying일수록 더 많고 격함
+            if (numCopies > 0) {
+                for (let c = 1; c <= numCopies; c++) {
+                    const ghostAlpha = this.dying 
+                        ? this.opacity * (0.5 - c * 0.06) 
+                        : this.opacity * (0.3 - c * 0.08);
+                    ctx.globalAlpha = Math.max(0, ghostAlpha);
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = this.dying ? 1.5 : 1;
+                    ctx.beginPath();
+                    for (let i = 0; i < pts.length; i++) {
+                        const p = pts[i];
+                        const normalizedY = p.y / this.toothH;
+                        const phaseShift = c * 1.5;
+                        const ampMult = this.dying ? (1 + c * 0.4) : (1 + c * 0.3);
+                        const waveY = Math.sin(normalizedY * distortFreq * Math.PI + time * distortSpeed + this.phase + phaseShift) * distortAmp * ampMult;
+                        const waveX = Math.sin(time * 3 + i * 0.5 + this.phase + phaseShift) * (this.dying ? distortAmp * 0.3 : blow * 3);
+                        const wx = p.x + waveX;
+                        const wy = p.y + waveY;
+                        if (i === 0) ctx.moveTo(wx, wy);
+                        else ctx.lineTo(wx, wy);
+                    }
+                    ctx.closePath();
+                    ctx.stroke();
+                }
+            }
+
+            ctx.restore();
+        }
+    }
+
+    // === 이빨 배치 ===
+    let teeth = [];
+
+    function initTeeth() {
+        teeth = [];
+        const margin = 15;
+        const availW = W - margin * 2;
+        const toothW = 48;
+        const gap = 5;
+        const count = Math.floor(availW / (toothW + gap));
+        const totalUsed = count * (toothW + gap) - gap;
+        const startX = (W - totalUsed) / 2 + toothW / 2;
+        const toothH = Math.min(110, H * 0.18);
+
+        for (let i = 0; i < count; i++) {
+            const x = startX + i * (toothW + gap);
+            teeth.push(new Tooth(x, true, toothW, toothH, i));
+            teeth.push(new Tooth(x, false, toothW, toothH, i));
+        }
+    }
+    initTeeth();
+    window.addEventListener('resize', () => { resize(); initTeeth(); });
+
+    // === 잇몸 (X-ray, 초록 계열) ===
+    function drawGums(time, blow, gumY) {
+        const gumH = 22;
+        const amp = 0.3 + blow * 2;
+
+        ctx.save();
+        ctx.shadowColor = 'rgb(0, 255, 100)';
+        ctx.shadowBlur = 2;
+
+        // 넓은 밴드
+        ctx.strokeStyle = 'rgba(0, 255, 100, 0.15)';
+        ctx.lineWidth = gumH;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        for (let x = 0; x <= W; x += 4) {
+            const wave = Math.sin(x * 0.015 + time * 1.2) * amp;
+            if (x === 0) ctx.moveTo(x, gumY + wave);
+            else ctx.lineTo(x, gumY + wave);
+        }
+        ctx.stroke();
+
+        // 엣지
+        ctx.strokeStyle = 'rgba(0, 255, 100, 0.35)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let x = 0; x <= W; x += 3) {
+            const wave = Math.sin(x * 0.015 + time * 1.2) * amp;
+            if (x === 0) ctx.moveTo(x, gumY - gumH / 2 + wave);
+            else ctx.lineTo(x, gumY - gumH / 2 + wave);
+        }
+        ctx.stroke();
+        ctx.beginPath();
+        for (let x = 0; x <= W; x += 3) {
+            const wave = Math.sin(x * 0.015 + time * 1.2 + 0.3) * amp;
+            if (x === 0) ctx.moveTo(x, gumY + gumH / 2 + wave);
+            else ctx.lineTo(x, gumY + gumH / 2 + wave);
+        }
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
+    // === 노이즈 ===
+    const noiseCanvas = document.createElement('canvas');
+    const noiseCtx2 = noiseCanvas.getContext('2d');
+    noiseCanvas.width = 128;
+    noiseCanvas.height = 128;
+
+    function drawNoise() {
+        const imageData = noiseCtx2.createImageData(128, 128);
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+            const v = Math.random() * 18;
+            data[i] = v;
+            data[i + 1] = v;
+            data[i + 2] = v;
+            data[i + 3] = 28;
+        }
+        noiseCtx2.putImageData(imageData, 0, 0);
+        ctx.drawImage(noiseCanvas, 0, 0, W, H);
+    }
+
+    // === 마이크 ===
+    let analyser = null;
+    let dataArray = null;
+    let micActive = false;
+    let micDenied = false;
+
+    async function initMic() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const source = audioCtx.createMediaStreamSource(stream);
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 256;
+            analyser.smoothingTimeConstant = 0.8;
+            source.connect(analyser);
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+            micActive = true;
+            document.getElementById('hint').classList.add('hidden');
+        } catch (e) {
+            micDenied = true;
+            document.getElementById('hint').textContent = '마우스를 빠르게 움직여 바람을 일으켜보세요';
+            setTimeout(() => document.getElementById('hint').classList.add('hidden'), 3000);
+        }
+    }
+
+    function getMicBlow() {
+        if (!analyser) return 0;
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        const len = Math.floor(dataArray.length * 0.4);
+        for (let i = 0; i < len; i++) sum += dataArray[i];
+        return Math.min(1, (sum / len / 255) * 2.5);
+    }
+
+    // === 마우스 속도 ===
+    let mouseX = 0, mouseY = 0, prevMouseX = 0, prevMouseY = 0, mouseSpeed = 0;
+    document.addEventListener('mousemove', (e) => { mouseX = e.clientX; mouseY = e.clientY; });
+
+    function getMouseBlow() {
+        const dx = mouseX - prevMouseX;
+        const dy = mouseY - prevMouseY;
+        const speed = Math.sqrt(dx * dx + dy * dy);
+        prevMouseX = mouseX;
+        prevMouseY = mouseY;
+        mouseSpeed += (speed - mouseSpeed) * 0.15;
+        return Math.min(1, mouseSpeed / 60);
+    }
+
+    document.addEventListener('click', () => { if (!micActive && !micDenied && gameState === 'play') initMic(); });
+    document.addEventListener('touchstart', () => { if (!micActive && !micDenied && gameState === 'play') initMic(); });
+
+    // === 메인 루프 ===
+    let time = 0;
+    let endTextStartTime = null;
+    introStartTime = performance.now() / 1000;
+
+    function drawTypingText(text, elapsed, x, y, fontSize, color, glowColor) {
+        color = color || 'rgba(0, 255, 100, 0.8)';
+        glowColor = glowColor || 'rgb(0, 255, 100)';
+        const charsToShow = Math.min(text.length, Math.floor(elapsed / 0.07));
+        const displayText = text.substring(0, charsToShow);
+        
+        ctx.fillStyle = color;
+        ctx.font = `bold ${fontSize}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.shadowColor = glowColor;
+        ctx.shadowBlur = 8;
+        ctx.fillText(displayText, x, y);
+        
+        // 커서 깜빡임
+        if (charsToShow < text.length && Math.floor(elapsed * 4) % 2 === 0) {
+            const textWidth = ctx.measureText(displayText).width;
+            ctx.fillRect(x + textWidth / 2 + 2, y - fontSize * 0.7, 2, fontSize * 0.9);
+        }
+        ctx.shadowBlur = 0;
+        
+        return charsToShow >= text.length; // 완료 여부
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        const now = performance.now() / 1000;
+        time += 0.016;
+
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+        drawNoise();
+
+        if (gameState === 'intro') {
+            // 검은 화면 + 오프닝 타이핑
+            const elapsed = now - introStartTime;
+            const done = drawTypingText(introText, elapsed, W / 2, H / 2, 22);
+            if (done && elapsed > introText.length * 0.07 + 1.5) {
+                gameState = 'guide';
+                guideStartTime = now;
+            }
+        } 
+        else if (gameState === 'guide') {
+            // 안내 문구 — 하단에 작게 표시
+            ctx.fillStyle = 'rgba(0, 255, 100, 0.4)';
+            ctx.font = '13px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(guideText, W / 2, H - 40);
+        }
+        else if (gameState === 'play') {
+            // 본편
+            let blowIntensity = micActive ? getMicBlow() : getMouseBlow();
+
+            const gumY = H / 2;
+            const deadCount = teeth.filter(t => t.dead).length;
+            const totalDamage = teeth.length > 0 ? (deadCount / teeth.length) * 100 : 0;
+
+            teeth.forEach(t => {
+                t.update(blowIntensity, time, totalDamage);
+                t.draw(ctx, time, blowIntensity, gumY);
+            });
+
+            // 하단 안내 (3초간 페이드아웃)
+            const playElapsed = now - playStartTime;
+            if (playElapsed < 4) {
+                const alpha = playElapsed < 3 ? 0.4 : 0.4 * (1 - (playElapsed - 3));
+                ctx.fillStyle = `rgba(0, 255, 100, ${alpha})`;
+                ctx.font = '13px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(guideText, W / 2, H - 40);
+            }
+
+            // 모두 사라짐 → 엔딩
+            if (teeth.length > 0 && teeth.every(t => t.dead)) {
+                gameState = 'ending';
+                endTextStartTime = now;
+            }
+        }
+        else if (gameState === 'ending') {
+            const elapsed = now - endTextStartTime;
+            drawTypingText(endingText, elapsed, W / 2, H / 2, 26, 'rgba(255, 50, 50, 0.9)', 'rgb(255, 50, 50)');
+        }
+    }
+
+    // 가이드 상태에서 클릭 → 마이크 시도 → 플레이 시작
+    document.addEventListener('click', () => {
+        if (gameState === 'guide') {
+            gameState = 'play';
+            playStartTime = performance.now() / 1000;
+            initMic();
+        }
+    });
+    document.addEventListener('touchstart', () => {
+        if (gameState === 'guide') {
+            gameState = 'play';
+            playStartTime = performance.now() / 1000;
+            initMic();
+        }
+    });
+    // 마우스 움직이면 가이드에서 바로 플레이 (마이크 없이)
+    document.addEventListener('mousemove', () => {
+        if (gameState === 'guide') {
+            gameState = 'play';
+            playStartTime = performance.now() / 1000;
+            micDenied = true;
+        }
+    }, { once: true });
+
+    animate();
+    </script>
+</body>
+</html>
